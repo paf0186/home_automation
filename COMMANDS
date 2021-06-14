@@ -1,0 +1,4 @@
+# RADIO
+python3 send_mqtt.py -g 4 -p 161 -t 1 -c 3513640
+# c is not required...^^^
+python3 receive.py -g 23

@@ -1,0 +1,125 @@
+{
+    "bridge": {
+        "name": "Homebridge 49C1",
+        "username": "0E:16:97:DE:49:C1",
+        "port": 51815,
+        "pin": "470-51-474"
+    },
+    "accessories": [
+        {
+            "type": "lightbulb",
+            "name": "LR On/Off",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/3513633/setOnOff"
+            },
+            "onValue": "3513633",
+            "offValue": "3513633",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "LR Up",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/3513633/setBrightnessUp"
+            },
+            "onValue": "3513636",
+            "offValue": "3513636",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "LR Down",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/3513633/setBrightnessDown"
+            },
+            "onValue": "3513640",
+            "offValue": "3513640",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "LR Color",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/3513633/setCCT"
+            },
+            "onValue": "3513634",
+            "offValue": "3513634",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "ST On/Off",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/13470497/setOnOff"
+            },
+            "onValue": "13470497",
+            "offValue": "13470497",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "ST Up",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/13470497/setBrightnessUp"
+            },
+            "onValue": "13470500",
+            "offValue": "13470500",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "ST Down",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/13470497/setBrightnessDown"
+            },
+            "onValue": "13470504",
+            "offValue": "13470504",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "ST Color",
+            "logMqtt": true,
+            "topics": {
+                "setOn": "cmnd/joofo30w2400lm/13470497/setCCT"
+            },
+            "onValue": "13470498",
+            "offValue": "13470498",
+            "accessory": "mqttthing"
+        },
+        {
+            "name": "VMWare Box",
+            "ip": "192.168.50.100",
+            "pingInterval": 2,
+            "pingsToChange": 5,
+            "pingTimeout": 1,
+            "pingCommandTimeout": 0,
+            "mac": "70:85:C2:95:E1:C5",
+            "startCommandTimeout": 0,
+            "wakeGraceTime": 45,
+            "wakeCommandTimeout": 0,
+            "shutdownCommand": "ssh root@192.168.50.100 'vim-cmd vmsvc/getallvms | cut -f 1 | grep -v Vmid | while read line ; do vim-cmd vmsvc/power.off $line ; done'; ssh root@192.168.50.100 poweroff",
+            "shutdownGraceTime": 45,
+            "shutdownCommandTimeout": 0,
+            "log": true,
+            "logPinger": false,
+            "debugLog": false,
+            "returnEarly": false,
+            "accessory": "NetworkDevice"
+        }
+    ],
+    "platforms": [
+        {
+            "name": "Config",
+            "port": 8581,
+            "platform": "config"
+        }
+    ]
+}
