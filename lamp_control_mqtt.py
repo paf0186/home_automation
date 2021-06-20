@@ -5,6 +5,8 @@ import argparse
 import logging
 import time
 import paho.mqtt.client as mqtt
+import math
+from math import ceil
 from time import sleep
 
 from rpi_rf import RFDevice
@@ -32,33 +34,87 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-def on_reset_lr(client, userdata, message):
-    print("on reset lamp")
+debug = False
+
+# Command offsets
+ON_OFF_OFFSET = 0
+# Errors inserted so you can't run until you fix these
+BRIGHTNESS_UP_OFFSET = 3
+BRIGHTNESS_DOWN_OFFSET = 7
+CCT_OFFSET = 1
+
+BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
+RESET_TOPIC = "Reset"
+ON_OFF_TOPIC = "OnOff"
+BRIGHTNESS_TOPIC = "Brightness"
+CCT_TOPIC = "cct"
+
+RF_DELAY = 0.05
+
+lamp_list = []
+
+def reset_lr(client, userdata, message):
+    if debug:
+        print("on reset lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
     lamp.reset_lamp()
 
 def on_off_lr(client, userdata, message):
-    print("on off lamp")
+    if debug:
+        print("on off lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
     lamp.send_on_off(payload)
 
 def set_br_lr(client, userdata, message):
-    print("set br lamp")
+    if debug:
+        print("set br lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
     lamp.set_brightness_level(int(payload))
-    print("End of set_br_lr")
 
 def set_cct_lr(client, userdata, message):
-    print("cct lamp")
+    if debug:
+        print("cct lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
+    lamp.send_cct()
+
+def reset_st(client, userdata, message):
+    if debug:
+        print("on reset lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp.reset_lamp()
+
+def on_off_st(client, userdata, message):
+    if debug:
+        print("on off lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp.send_on_off(payload)
+
+def set_br_st(client, userdata, message):
+    if debug:
+        print("set br lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp.set_brightness_level(int(payload))
+
+def set_cct_st(client, userdata, message):
+    if debug:
+        print("cct lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
     lamp.send_cct()
 
 class joofo_lamp:
@@ -80,17 +136,28 @@ class joofo_lamp:
         self.client = client
         topic_string = "{}{}{}".format(BASE_TOPIC,"set",RESET_TOPIC)
         print("RESET TOPIC SUB:" + topic_string)
-        # This is almost hard coded to LR right now
-        client.message_callback_add(topic_string, on_reset_lr)
+        if lamp_id == LIVING_ROOM_LAMP:
+            client.message_callback_add(topic_string, reset_lr)
+        else:
+            client.message_callback_add(topic_string, reset_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",ON_OFF_TOPIC)
         print("ON OFF TOPIC SUB:" + topic_string)
-        client.message_callback_add(topic_string, on_off_lr)
+        if lamp_id == LIVING_ROOM_LAMP:
+            client.message_callback_add(topic_string, on_off_lr)
+        else:
+            client.message_callback_add(topic_string, on_off_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",BRIGHTNESS_TOPIC)
         print("SET BRIGHTNESS TOPIC SUB:" + topic_string)
-        client.message_callback_add(topic_string, set_br_lr)
+        if lamp_id == LIVING_ROOM_LAMP:
+            client.message_callback_add(topic_string, set_br_lr)
+        else:
+            client.message_callback_add(topic_string, set_br_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",CCT_TOPIC)
         print("SET CCT TOPIC SUB:" + topic_string)
-        client.message_callback_add(topic_string, set_cct_lr)
+        if lamp_id == LIVING_ROOM_LAMP:
+            client.message_callback_add(topic_string, set_cct_lr)
+        else:
+            client.message_callback_add(topic_string, set_cct_st)
 
 
     # If it's on, turn it off.  Otherwise, do nothing.
@@ -101,9 +168,6 @@ class joofo_lamp:
             self.on = False
 
     def send_on_off(self, setting):
-        print("send_on_off")
-        print(self.on)
-        print(setting)
         if setting == "true":
             on = True
         else:
@@ -115,17 +179,19 @@ class joofo_lamp:
 
     def send_brup(self):
         self.reset = False
-        # TODO Consider 0 brightness handling
+        self.on = True
         if self.brightness < 10:
             self.brightness += 1
-        print("brup" + str(self.brightness))
+        if debug:
+            print("brup" + str(self.brightness))
         send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
     def send_brdown(self):
         self.reset = False
         if self.brightness > 1:
             self.brightness -= 1
-        print("brdown" + str(self.brightness))
+        if debug:
+            print("brdown" + str(self.brightness))
         send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
 
     def send_cct(self):
@@ -137,22 +203,13 @@ class joofo_lamp:
         send_rf(self.lamp_id + CCT_OFFSET)
 
     def set_brightness_level(self, level):
-        print("Setting brightness, requested:" + str(level))
-        # Using brightness change to turn the lamp on
-        # means it starts at zero
-        # ... probably?  That's probably how HomeKit works?
-        # Maybe it sends an on signal first???
-        # TODO
-        #if not self.on:
-        #    self.brightness = 0
-
+        if debug:
+            print("Setting brightness, requested:" + str(level))
         # Lamp has 10 brightness levels (plus off)
         # but HomeKit has 100 brightness levels
-        if level > 0 and level < 10:
-            level = 10
         # Reduce it to our range and round it - we only have 10 brightness
         # levels
-        level = round(level/10)
+        level = ceil(level/10)
         
         if level == 0:
             self.turn_off()
@@ -162,54 +219,35 @@ class joofo_lamp:
         if level == self.brightness:
             return
 
-        print("Rounded:" + str(level))
+        if debug:
+            print("Rounded:" + str(level))
 
         # Take the brightness to the required level
         while self.brightness < level:
             self.send_brup()
-            print("Level:" + str(level))
-            print("Brightness:" + str(self.brightness))
-            sleep(0.2)
+            if debug:
+                print("Level:" + str(level))
 
         while self.brightness > level:
             self.send_brdown()
-            print("Level:" + str(level))
-            print("Brightness:" + str(self.brightness))
-            sleep(0.2)
-        print("End of set brightness")
+            if debug:
+                print("Level:" + str(level))
 
     def reset_lamp(self):
-        # After this, lamp is known "on"
+        # After this, lamp is known "on", brightness indeterminate
         self.send_brup()
-        sleep(0.2)
-        # After this, lamp is known "off"
-        self.on = True
-        self.send_on_off(False)
-        sleep(0.2)
+        # Lower brightness to minimum level - Does NOT cause lamp to turn off
         # After this, lamp is known on at brightness 1
-        self.send_brup()
+        # Could probably just use 0-10, but use 0-11 to be sure
+        for i in range(0,11):
+            print(i)
+            self.send_brdown()
 
         self.reset = True
         self.on = True
         self.brightness = 1 
         # Can't actually change the temp, but eh
         self.color_temperature = 0
-
-# Command offsets
-ON_OFF_OFFSET = 0
-# Errors inserted so you can't run until you fix these
-BRIGHTNESS_UP_OFFSET = 3
-BRIGHTNESS_DOWN_OFFSET = 7
-CCT_OFFSET = 1
-
-BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
-ADVERTISE_TOPIC = "Advertise"
-RESET_TOPIC = "Reset"
-ON_OFF_TOPIC = "OnOff"
-BRIGHTNESS_TOPIC = "Brightness"
-CCT_TOPIC = "cct"
-
-lamp_list = []
 
 def find_or_create_lamp(lamp_list, lamp_id, client):
     for item in lamp_list:
@@ -219,8 +257,7 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     new_lamp = joofo_lamp(lamp_id, client)
     lamp_list.append(new_lamp)
 
-    print("Created:")
-    print(new_lamp)
+    print("Created lamp:" + str(lamp_id))
     return new_lamp
 
 def send_rf(message):
@@ -229,29 +266,9 @@ def send_rf(message):
     rfdevice.enable_tx()
     rfdevice.tx_code(int(message), args.protocol, args.pulselength)
     rfdevice.cleanup()
+    sleep(RF_DELAY)
 
-# On startup, we sign up to the advertise channel
-# And we get the message off there
-# We also sign up to the "Reset" channel
-# And process messages from there the same way
-# That is to say, receiving a message causes us to create
-# a lamp if one does not exist
-
-# So that is forever the handling of the advertise channel
-# The reset button has the additional feature of creating a
-# lamp, and then attempting a reset
-
-#def on_message(client, userdata, message):
-#    payload=str(message.payload.decode("utf-8"))
-#    logging.info("received message =" + payload)
-#    logging.info("Sending:" + payload +
-#                 " [protocol: " + str(protocol) +
-#                 ", pulselength: " + str(pulselength) + "]")
-    #send_rf(payload)
-
-#mqtt
 client =mqtt.Client("homebridge_mqtt_rfclient")
-#client.on_message=on_message
 client.connect("localhost")
 client.loop_start()
 topic_string = "{}#".format(BASE_TOPIC)
