@@ -34,7 +34,7 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = True
+debug = False
 
 # Command offsets
 ON_OFF_OFFSET = 0
