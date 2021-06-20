@@ -34,7 +34,7 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = False
+debug = True
 
 # Command offsets
 ON_OFF_OFFSET = 0
@@ -51,19 +51,22 @@ CCT_TOPIC = "cct"
 
 RF_DELAY = 0.05
 
+LIVING_ROOM_LAMP = 3513633
+STUDY_LAMP = 13470497
+
 lamp_list = []
 
-def reset_lr(client, userdata, message):
-    if debug:
-        print("on reset lamp")
+def reset_lamp(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
+    if debug:
+        print("on reset lamp " + payload)
+    lamp = find_or_create_lamp(lamp_list, int(payload), client)
     lamp.reset_lamp()
 
 def on_off_lr(client, userdata, message):
     if debug:
-        print("on off lamp")
+        print("LR on off lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
@@ -71,7 +74,7 @@ def on_off_lr(client, userdata, message):
 
 def set_br_lr(client, userdata, message):
     if debug:
-        print("set br lamp")
+        print("LR set br lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
@@ -79,23 +82,15 @@ def set_br_lr(client, userdata, message):
 
 def set_cct_lr(client, userdata, message):
     if debug:
-        print("cct lamp")
+        print("LR cct lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
     lamp.send_cct()
 
-def reset_st(client, userdata, message):
-    if debug:
-        print("on reset lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
-    lamp.reset_lamp()
-
 def on_off_st(client, userdata, message):
     if debug:
-        print("on off lamp")
+        print("ST on off lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
@@ -103,7 +98,7 @@ def on_off_st(client, userdata, message):
 
 def set_br_st(client, userdata, message):
     if debug:
-        print("set br lamp")
+        print("ST set br lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
@@ -111,7 +106,7 @@ def set_br_st(client, userdata, message):
 
 def set_cct_st(client, userdata, message):
     if debug:
-        print("cct lamp")
+        print("ST cct lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
@@ -136,10 +131,7 @@ class joofo_lamp:
         self.client = client
         topic_string = "{}{}{}".format(BASE_TOPIC,"set",RESET_TOPIC)
         print("RESET TOPIC SUB:" + topic_string)
-        if lamp_id == LIVING_ROOM_LAMP:
-            client.message_callback_add(topic_string, reset_lr)
-        else:
-            client.message_callback_add(topic_string, reset_st)
+        client.message_callback_add(topic_string, reset_lamp)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",ON_OFF_TOPIC)
         print("ON OFF TOPIC SUB:" + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
@@ -275,8 +267,6 @@ topic_string = "{}#".format(BASE_TOPIC)
 print("Subscribing to:" + topic_string)
 client.subscribe(topic_string, qos=0)
 
-LIVING_ROOM_LAMP = 3513633
-STUDY_LAMP = 13470497
 find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
 find_or_create_lamp(lamp_list, STUDY_LAMP, client)
 
