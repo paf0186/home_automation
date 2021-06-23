@@ -1,0 +1,13 @@
+[Unit]
+Description=rf mqtt lamp controller for HomeBridge
+After=network.target homebridge.service
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/home_automation/lamp_control_mqtt.py -g 4 -p 161 -t 1
+
+[Install]
+WantedBy=multi-user.target
