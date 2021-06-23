@@ -7,94 +7,6 @@
     },
     "accessories": [
         {
-            "type": "lightbulb",
-            "name": "LR On/Off",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/3513633/setOnOff"
-            },
-            "onValue": "3513633",
-            "offValue": "3513633",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "LR Up",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/3513633/setBrightnessUp"
-            },
-            "onValue": "3513636",
-            "offValue": "3513636",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "LR Down",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/3513633/setBrightnessDown"
-            },
-            "onValue": "3513640",
-            "offValue": "3513640",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "LR Color",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/3513633/setCCT"
-            },
-            "onValue": "3513634",
-            "offValue": "3513634",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "ST On/Off",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/13470497/setOnOff"
-            },
-            "onValue": "13470497",
-            "offValue": "13470497",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "ST Up",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/13470497/setBrightnessUp"
-            },
-            "onValue": "13470500",
-            "offValue": "13470500",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "ST Down",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/13470497/setBrightnessDown"
-            },
-            "onValue": "13470504",
-            "offValue": "13470504",
-            "accessory": "mqttthing"
-        },
-        {
-            "type": "lightbulb",
-            "name": "ST Color",
-            "logMqtt": true,
-            "topics": {
-                "setOn": "cmnd/joofo30w2400lm/13470497/setCCT"
-            },
-            "onValue": "13470498",
-            "offValue": "13470498",
-            "accessory": "mqttthing"
-        },
-        {
             "name": "VMWare Box",
             "ip": "192.168.50.100",
             "pingInterval": 2,
@@ -113,6 +25,82 @@
             "debugLog": false,
             "returnEarly": false,
             "accessory": "NetworkDevice"
+        },
+        {
+            "type": "lightSensor",
+            "name": "Light Sensor",
+            "topics": {
+                "getOnline": "H",
+                "getBatteryLevel": "D",
+                "getChargingState": "F",
+                "getCurrentAmbientLightLevel": "A",
+                "getStatusActive": "B",
+                "getStatusFault": "C",
+                "getStatusLowBattery": "E",
+                "getStatusTampered": "G"
+            },
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "switch",
+            "name": "LR Reset",
+            "logMqtt": true,
+            "topics": {
+                "getOn": "cmnd/joofo30w2400lm_control/getReset",
+                "setOn": "cmnd/joofo30w2400lm_control/setReset"
+            },
+            "onValue": "3513633",
+            "offValue": "3513633",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "switch",
+            "name": "ST Reset",
+            "topics": {
+                "getOn": "cmnd/joofo30w2400lm_control/getReset",
+                "setOn": "cmnd/joofo30w2400lm_control/setReset"
+            },
+            "onValue": "13470497",
+            "offValue": "13470497",
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "LR Lamp",
+            "logMqtt": true,
+            "topics": {
+                "getOn": "cmnd/joofo30w2400lm_control/3513633/getOnOff",
+                "setOn": "cmnd/joofo30w2400lm_control/3513633/setOnOff",
+                "getBrightness": "cmnd/joofo30w2400lm_control/3513633/getBrightness",
+                "setBrightness": "cmnd/joofo30w2400lm_control/3513633/setBrightness",
+                "setColorTemperature": "cmnd/joofo30w2400lm_control/3513633/setcct"
+            },
+            "startPub": [
+                {
+                    "topic": "Advertise",
+                    "message": "3513633"
+                }
+            ],
+            "accessory": "mqttthing"
+        },
+        {
+            "type": "lightbulb",
+            "name": "ST Lamp",
+            "logMqtt": true,
+            "topics": {
+                "getOn": "cmnd/joofo30w2400lm_control/13470497/getOnOff",
+                "setOn": "cmnd/joofo30w2400lm_control/13470497/setOnOff",
+                "getBrightness": "cmnd/joofo30w2400lm_control/13470497/getBrightness",
+                "setBrightness": "cmnd/joofo30w2400lm_control/13470497/setBrightness",
+                "setColorTemperature": "cmnd/joofo30w2400lm_control/13470497/setcct"
+            },
+            "startPub": [
+                {
+                    "topic": "Advertise",
+                    "message": "13470497"
+                }
+            ],
+            "accessory": "mqttthing"
         }
     ],
     "platforms": [
