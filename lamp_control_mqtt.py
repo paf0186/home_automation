@@ -153,11 +153,11 @@ class joofo_lamp:
 
 
     # If it's on, turn it off.  Otherwise, do nothing.
-    def turn_off(self):
-        if self.on:
-            self.reset = False
-            send_rf(self.lamp_id + ON_OFF_OFFSET)
-            self.on = False
+    #def turn_off(self):
+    #    if self.on:
+    #        self.reset = False
+    #        send_rf(self.lamp_id + ON_OFF_OFFSET)
+    #        self.on = False
 
     def send_on_off(self, setting):
         if setting == "true":
@@ -203,9 +203,10 @@ class joofo_lamp:
         # levels
         level = ceil(level/10)
         
-        if level == 0:
-            self.turn_off()
-            return
+        # Homekit does this for us
+        #if level == 0:
+        #    self.turn_off()
+        #    return
 
         # No need to change it
         if level == self.brightness:
@@ -261,7 +262,7 @@ def send_rf(message):
     sleep(RF_DELAY)
 
 client =mqtt.Client("homebridge_mqtt_rfclient")
-client.connect("localhost")
+client.connect("192.168.50.222")
 client.loop_start()
 topic_string = "{}#".format(BASE_TOPIC)
 print("Subscribing to:" + topic_string)
