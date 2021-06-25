@@ -34,7 +34,7 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = False
+debug = True
 
 # Command offsets
 ON_OFF_OFFSET = 0
@@ -70,7 +70,7 @@ def on_off_lr(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.send_on_off(payload)
+    lamp.send_on_off(payload, False)
 
 def set_br_lr(client, userdata, message):
     if debug:
@@ -94,7 +94,7 @@ def on_off_st(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
-    lamp.send_on_off(payload)
+    lamp.send_on_off(payload, False)
 
 def set_br_st(client, userdata, message):
     if debug:
@@ -159,12 +159,12 @@ class joofo_lamp:
     #        send_rf(self.lamp_id + ON_OFF_OFFSET)
     #        self.on = False
 
-    def send_on_off(self, setting):
+    def send_on_off(self, setting, reset):
         if setting == "true":
             on = True
         else:
             on = False
-        if self.on != on:
+        if self.on != on or reset:
             self.reset = False
             self.on = not self.on
             send_rf(self.lamp_id + ON_OFF_OFFSET)
@@ -202,6 +202,10 @@ class joofo_lamp:
         # Reduce it to our range and round it - we only have 10 brightness
         # levels
         level = ceil(level/10)
+        # Turning brightness to zero is handled by turning the lamp off from
+        # homekit
+        if level == 0:
+            level = 1
         
         # Homekit does this for us
         #if level == 0:
@@ -229,12 +233,17 @@ class joofo_lamp:
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate
         self.send_brup()
+        # After: Lamp is off
+        self.send_on_off(True, True)
+        # After: Lamp brightness is now 1
+        self.send_brup()
+        # The following method is slower.
         # Lower brightness to minimum level - Does NOT cause lamp to turn off
         # After this, lamp is known on at brightness 1
         # Could probably just use 0-10, but use 0-11 to be sure
-        for i in range(0,11):
-            print(i)
-            self.send_brdown()
+        #for i in range(0,11):
+        #    print(i)
+        #    self.send_brdown()
 
         self.reset = True
         self.on = True
