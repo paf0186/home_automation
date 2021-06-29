@@ -34,7 +34,7 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = True
+debug = False
 
 # Command offsets
 ON_OFF_OFFSET = 0
@@ -247,7 +247,10 @@ class joofo_lamp:
 
         self.reset = True
         self.on = True
-        self.brightness = 1 
+        # Turning the lamp on with BRUP sets the brightness to 2
+        # Rather than 1...... which is a weird choice, but hey
+        # It wasn't MY choice
+        self.brightness = 2 
         # Can't actually change the temp, but eh
         self.color_temperature = 0
 
