@@ -273,16 +273,23 @@ def send_rf(message):
     rfdevice.cleanup()
     sleep(RF_DELAY)
 
+def on_disconnect(mqttc, userdata, rc):
+    print("Disconnected.  Will try to reconnect.")
+
+def on_connect(mqttc, obj, flags, rc):
+    print("Connected.")
+    topic_string = "{}#".format(BASE_TOPIC)
+    print("Subscribing to:" + topic_string)
+    client.subscribe(topic_string, qos=0)
+
+    lamp_list = []
+    find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
+    find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+
 client =mqtt.Client("homebridge_mqtt_rfclient")
+client.on_connect = on_connect
+client.on_disconnect = on_disconnect
 client.connect("192.168.50.222")
-client.loop_start()
-topic_string = "{}#".format(BASE_TOPIC)
-print("Subscribing to:" + topic_string)
-client.subscribe(topic_string, qos=0)
-
-find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-find_or_create_lamp(lamp_list, STUDY_LAMP, client)
-
 
 if args.code:
     print("Sending one message.")
@@ -295,5 +302,4 @@ if args.code:
     rfdevice.cleanup()
 else:
     logging.info("Waiting for mqtt messages.")
-    while True:
-        sleep(600)
+    client.loop_forever()
