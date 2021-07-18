@@ -42,11 +42,6 @@ if args.sendtime:
 else:
     sendtime = 0
 
-#mqtt
-client =mqtt.Client("pi_plugin_test")
-client.connect("localhost")
-#client.subscribe(topic, qos=0)
-
 timeout = time.time() + float(sendtime)
 logging.info(str(args.code) +
              " [protocol: " + str(protocol) +
@@ -61,7 +56,7 @@ while True:
     rfdevice.tx_code(args.code, args.protocol, args.pulselength)
     if float(sendtime) != 0:
         print("Sleeping...")
-        sleep(0.5)
+        sleep(0.2)
     if sendtime == 0:
         break
     elif time.time() > timeout:

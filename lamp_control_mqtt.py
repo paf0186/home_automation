@@ -52,7 +52,9 @@ CCT_TOPIC = "cct"
 RF_DELAY = 0.05
 
 LIVING_ROOM_LAMP = 3513633
-STUDY_LAMP = 13470497
+STUDY_LAMPS = 13470497
+STUDY_DESK_LAMP = 9513633
+STUDY_TABLE_LAMP = 4513633
 
 lamp_list = []
 
@@ -93,7 +95,7 @@ def on_off_st(client, userdata, message):
         print("ST on off lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
     lamp.send_on_off(payload, False)
 
 def set_br_st(client, userdata, message):
@@ -101,7 +103,7 @@ def set_br_st(client, userdata, message):
         print("ST set br lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
     lamp.set_brightness_level(int(payload))
 
 def set_cct_st(client, userdata, message):
@@ -109,7 +111,55 @@ def set_cct_st(client, userdata, message):
         print("ST cct lamp")
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
+    lamp.send_cct()
+
+def on_off_st_desk(client, userdata, message):
+    if debug:
+        print("ST on off desk lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
+    lamp.send_on_off(payload, False)
+
+def set_br_st_desk(client, userdata, message):
+    if debug:
+        print("ST set br desk lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
+    lamp.set_brightness_level(int(payload))
+
+def set_cct_st_desk(client, userdata, message):
+    if debug:
+        print("ST cct desk lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
+    lamp.send_cct()
+
+def on_off_st_table(client, userdata, message):
+    if debug:
+        print("ST on off table lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
+    lamp.send_on_off(payload, False)
+
+def set_br_st_table(client, userdata, message):
+    if debug:
+        print("ST set br table lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
+    lamp.set_brightness_level(int(payload))
+
+def set_cct_st_table(client, userdata, message):
+    if debug:
+        print("ST cct table lamp")
+    payload=str(message.payload.decode("utf-8"))
+    logging.info("received message =" + payload)
+    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
     lamp.send_cct()
 
 class joofo_lamp:
@@ -136,19 +186,31 @@ class joofo_lamp:
         print("ON OFF TOPIC SUB:" + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, on_off_lr)
-        else:
+        elif lamp_id == STUDY_DESK_LAMP:
+            client.message_callback_add(topic_string, on_off_st_desk)
+        elif lamp_id == STUDY_TABLE_LAMP:
+            client.message_callback_add(topic_string, on_off_st_table)
+        elif lamp_id == STUDY_LAMPS:
             client.message_callback_add(topic_string, on_off_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",BRIGHTNESS_TOPIC)
         print("SET BRIGHTNESS TOPIC SUB:" + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, set_br_lr)
-        else:
+        elif lamp_id == STUDY_DESK_LAMP:
+            client.message_callback_add(topic_string, set_br_st_desk)
+        elif lamp_id == STUDY_TABLE_LAMP:
+            client.message_callback_add(topic_string, set_br_st_table)
+        elif lamp_id == STUDY_LAMPS:
             client.message_callback_add(topic_string, set_br_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",CCT_TOPIC)
         print("SET CCT TOPIC SUB:" + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, set_cct_lr)
-        else:
+        elif lamp_id == STUDY_DESK_LAMP:
+            client.message_callback_add(topic_string, set_cct_st_desk)
+        elif lamp_id == STUDY_TABLE_LAMP:
+            client.message_callback_add(topic_string, set_cct_st_table)
+        elif lamp_id == STUDY_LAMPS:
             client.message_callback_add(topic_string, set_cct_st)
 
 
@@ -284,7 +346,9 @@ def on_connect(mqttc, obj, flags, rc):
 
     lamp_list = []
     find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    find_or_create_lamp(lamp_list, STUDY_LAMP, client)
+    find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
+    find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
+    find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
 
 client =mqtt.Client("homebridge_mqtt_rfclient")
 client.on_connect = on_connect

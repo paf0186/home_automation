@@ -27,21 +27,6 @@
             "accessory": "NetworkDevice"
         },
         {
-            "type": "lightSensor",
-            "name": "Light Sensor",
-            "topics": {
-                "getOnline": "H",
-                "getBatteryLevel": "D",
-                "getChargingState": "F",
-                "getCurrentAmbientLightLevel": "A",
-                "getStatusActive": "B",
-                "getStatusFault": "C",
-                "getStatusLowBattery": "E",
-                "getStatusTampered": "G"
-            },
-            "accessory": "mqttthing"
-        },
-        {
             "type": "switch",
             "name": "LR Reset",
             "logMqtt": true,
@@ -51,18 +36,21 @@
             },
             "onValue": "3513633",
             "offValue": "3513633",
-            "accessory": "mqttthing"
+            "accessory": "mqttthing",
+            "log": true
         },
         {
             "type": "switch",
             "name": "ST Reset",
+            "logMqtt": true,
             "topics": {
                 "getOn": "cmnd/joofo30w2400lm_control/getReset",
                 "setOn": "cmnd/joofo30w2400lm_control/setReset"
             },
             "onValue": "13470497",
             "offValue": "13470497",
-            "accessory": "mqttthing"
+            "accessory": "mqttthing",
+            "log": true
         },
         {
             "type": "lightbulb",
@@ -81,11 +69,12 @@
                     "message": "3513633"
                 }
             ],
-            "accessory": "mqttthing"
+            "accessory": "mqttthing",
+            "log": true
         },
         {
             "type": "lightbulb",
-            "name": "ST Lamp",
+            "name": "ST Lamps",
             "logMqtt": true,
             "topics": {
                 "getOn": "cmnd/joofo30w2400lm_control/13470497/getOnOff",
@@ -100,7 +89,8 @@
                     "message": "13470497"
                 }
             ],
-            "accessory": "mqttthing"
+            "accessory": "mqttthing",
+            "log": true
         }
     ],
     "platforms": [
@@ -108,6 +98,16 @@
             "name": "Config",
             "port": 8581,
             "platform": "config"
+        },
+        {
+            "platform": "Cmd4",
+            "name": "Cmd4",
+            "debug": true,
+            "allowTLV8": true,
+            "outputConstants": true,
+            "restartRecover": true,
+            "Cmd4_Mode": "Polled",
+            "accessories": []
         }
     ]
 }
