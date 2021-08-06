@@ -56,7 +56,7 @@ while True:
     rfdevice.tx_code(args.code, args.protocol, args.pulselength)
     if float(sendtime) != 0:
         print("Sleeping...")
-        sleep(0.2)
+        sleep(0.7)
     if sendtime == 0:
         break
     elif time.time() > timeout:

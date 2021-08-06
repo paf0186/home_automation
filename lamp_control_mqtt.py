@@ -297,7 +297,7 @@ class joofo_lamp:
         self.send_brup()
         # After: Lamp is off
         self.send_on_off(True, True)
-        # After: Lamp brightness is now 1
+        # After: Lamp brightness is now 2
         self.send_brup()
         # The following method is slower.
         # Lower brightness to minimum level - Does NOT cause lamp to turn off
