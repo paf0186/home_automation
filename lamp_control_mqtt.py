@@ -9,6 +9,7 @@ import math
 from math import ceil
 from time import sleep
 
+from RPi import GPIO
 from rpi_rf import RFDevice
 
 logging.basicConfig(level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S',
@@ -17,8 +18,10 @@ logging.basicConfig(level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S',
 parser = argparse.ArgumentParser(description='Sends a decimal code via a 433/315MHz GPIO device')
 parser.add_argument('-c', dest='code', type=int,
                     help="Decimal code to send")
-parser.add_argument('-g', dest='gpio', type=int, default=17,
-                    help="GPIO pin (Default: 17)")
+parser.add_argument('-g', dest='gpio_tx', type=int, default=4,
+                    help="GPIO transmit pin (Default: 4)")
+parser.add_argument('-r', dest='gpio_rx', type=int, default=23,
+                    help="GPIO receive pin (Default: 23)")
 parser.add_argument('-p', dest='pulselength', type=int, default=None,
                     help="Pulselength (Default: 350)")
 parser.add_argument('-t', dest='protocol', type=int, default=None,
@@ -331,10 +334,11 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
 
 def send_rf(message):
     print("Sending: " + str(message))
-    rfdevice = RFDevice(args.gpio, tx_repeat=2)
-    rfdevice.enable_tx()
-    rfdevice.tx_code(int(message), args.protocol, args.pulselength)
-    rfdevice.cleanup()
+    txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
+    txdevice.enable_tx()
+    txdevice.tx_code(int(message), args.protocol, args.pulselength)
+    txdevice.disable_tx()
+    GPIO.cleanup(args.gpio_tx)
     sleep(RF_DELAY)
 
 def on_disconnect(mqttc, userdata, rc):
@@ -362,10 +366,29 @@ if args.code:
     logging.info(str(args.code) +
                  " [protocol: " + str(protocol) +
                  ", pulselength: " + str(pulselength) + "]")
-    rfdevice = RFDevice(args.gpio, tx_repeat=2)
-    rfdevice.enable_tx()
-    rfdevice.tx_code(args.code, args.protocol, args.pulselength)
-    rfdevice.cleanup()
+    txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
+    txdevice.enable_tx()
+    txdevice.tx_code(args.code, args.protocol, args.pulselength)
+    txdevice.cleanup()
 else:
     logging.info("Waiting for mqtt messages.")
-    client.loop_forever()
+    #client.loop_forever()
+    rxdevice = RFDevice(args.gpio_rx)
+    rxdevice.enable_rx()
+    timestamp = None
+    # We check this every time this thread blocks, hence the sleep in the loop
+    # below.
+    client.loop_start()
+    # So this loop receives the message
+    # and so I have to figure how to match this to the lamp state
+    # but I also have to figure out how to make the lamp queryable
+    while True:
+        if rxdevice.rx_code_timestamp != timestamp:
+            timestamp = rxdevice.rx_code_timestamp
+            #logging.info(str(rxdevice.rx_code) +
+            #             " [pulselength " + str(rxdevice.rx_pulselength) +
+            #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
+            #print(str(rxdevice.rx_code) +
+            #             " [pulselength " + str(rxdevice.rx_pulselength) +
+            #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
+        sleep(0.01)
