@@ -41,11 +41,12 @@ debug = True
 
 # Command offsets
 ON_OFF_OFFSET = 0
-# Errors inserted so you can't run until you fix these
+CCT_OFFSET = 1
 BRIGHTNESS_UP_OFFSET = 3
 BRIGHTNESS_DOWN_OFFSET = 7
-CCT_OFFSET = 1
-BR_LEVELS=32
+MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
+CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
+BR_LEVELS=33
 
 BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
 RESET_TOPIC = "Reset"
@@ -59,6 +60,7 @@ LIVING_ROOM_LAMP = 3513633
 STUDY_LAMPS = 13470497
 STUDY_DESK_LAMP = 9513633
 STUDY_TABLE_LAMP = 4513633
+LAMPS2NAMES={LIVING_ROOM_LAMP : "LIVING_ROOM_LAMP", STUDY_LAMPS : "STUDY_LAMPS", STUDY_DESK_LAMP : "STUDY_DESK_LAMP", STUDY_TABLE_LAMP : "STUDY_TABLE_LAMP"}
 
 lamp_list = []
 
@@ -263,15 +265,14 @@ class joofo_lamp:
     def set_brightness_level(self, level):
         if debug:
             print("Setting brightness, requested: " + str(level))
-        # Lamp has 10 brightness levels (plus off)
+        # Lamp has BR_LEVELS brightness levels (plus off)
         # but HomeKit has 100 brightness levels
-        # Reduce it to our range and round it - we only have 10 brightness
-        # levels
+        # Reduce it to our range and round it
         level = ceil(level*BR_LEVELS/100)
         # Turning brightness to zero is handled by turning the lamp off from
         # homekit
-        #if level == 0:
-        #    level = 1
+        if level == 0:
+            level = 1
         
         # Homekit does this for us
         #if level == 0:
@@ -332,6 +333,23 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     print("Created lamp: " + str(lamp_id))
     return new_lamp
 
+# Decode a message off the wire
+def decode_rx(code):
+    target_lamp=None
+    for lamp in lamp_list:
+        if abs(int(code) - int(lamp.lamp_id)) <= MAX_OFFSET:
+            target_lamp=lamp
+
+    if target_lamp is None:
+        return (None,None)
+    command = int(code) - int(target_lamp.lamp_id)
+    if command not in CMDS2NAMES.keys():
+        return (None, None)
+    print("Code: " + str(code))
+    print(LAMPS2NAMES[target_lamp.lamp_id])
+    print(CMDS2NAMES[command])
+    return (target_lamp,command)
+
 def send_rf(message):
     print("Sending: " + str(message))
     txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
@@ -350,7 +368,6 @@ def on_connect(mqttc, obj, flags, rc):
     print("Subscribing to:" + topic_string)
     client.subscribe(topic_string, qos=0)
 
-    lamp_list = []
     find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
     find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
     find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
@@ -378,6 +395,7 @@ else:
     timestamp = None
     # We check this every time this thread blocks, hence the sleep in the loop
     # below.
+    client.loop_forever()
     client.loop_start()
     # So this loop receives the message
     # and so I have to figure how to match this to the lamp state
@@ -388,7 +406,12 @@ else:
             #logging.info(str(rxdevice.rx_code) +
             #             " [pulselength " + str(rxdevice.rx_pulselength) +
             #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
-            #print(str(rxdevice.rx_code) +
+            code = rxdevice.rx_code
+            decode_rx(code)
+            #print(str(code) +
             #             " [pulselength " + str(rxdevice.rx_pulselength) +
             #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
-        sleep(0.01)
+        # Basically we check for new RF messages this often.
+        # This was determined experimentally - checking more often than this
+        # didn't result in changes to message timestamps
+        sleep(0.0001)
