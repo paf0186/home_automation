@@ -34,7 +34,7 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = False
+debug = True
 
 # Command offsets
 ON_OFF_OFFSET = 0
@@ -42,6 +42,7 @@ ON_OFF_OFFSET = 0
 BRIGHTNESS_UP_OFFSET = 3
 BRIGHTNESS_DOWN_OFFSET = 7
 CCT_OFFSET = 1
+BR_LEVELS=32
 
 BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
 RESET_TOPIC = "Reset"
@@ -167,7 +168,7 @@ class joofo_lamp:
     lamp_id = 0
     # on_off state
     on = False
-    # Range from 0-10; 0 is off
+    # Range from 0-BR_LEVELS; 0 is off
     brightness = 0
     # reset to on at 1 brightness & no other changes made
     reset = False
@@ -180,10 +181,10 @@ class joofo_lamp:
         self.lamp_id = lamp_id
         self.client = client
         topic_string = "{}{}{}".format(BASE_TOPIC,"set",RESET_TOPIC)
-        print("RESET TOPIC SUB:" + topic_string)
+        print("RESET TOPIC SUB: " + topic_string)
         client.message_callback_add(topic_string, reset_lamp)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",ON_OFF_TOPIC)
-        print("ON OFF TOPIC SUB:" + topic_string)
+        print("ON OFF TOPIC SUB: " + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, on_off_lr)
         elif lamp_id == STUDY_DESK_LAMP:
@@ -193,7 +194,7 @@ class joofo_lamp:
         elif lamp_id == STUDY_LAMPS:
             client.message_callback_add(topic_string, on_off_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",BRIGHTNESS_TOPIC)
-        print("SET BRIGHTNESS TOPIC SUB:" + topic_string)
+        print("SET BRIGHTNESS TOPIC SUB: " + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, set_br_lr)
         elif lamp_id == STUDY_DESK_LAMP:
@@ -203,7 +204,7 @@ class joofo_lamp:
         elif lamp_id == STUDY_LAMPS:
             client.message_callback_add(topic_string, set_br_st)
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",CCT_TOPIC)
-        print("SET CCT TOPIC SUB:" + topic_string)
+        print("SET CCT TOPIC SUB: " + topic_string)
         if lamp_id == LIVING_ROOM_LAMP:
             client.message_callback_add(topic_string, set_cct_lr)
         elif lamp_id == STUDY_DESK_LAMP:
@@ -234,10 +235,10 @@ class joofo_lamp:
     def send_brup(self):
         self.reset = False
         self.on = True
-        if self.brightness < 10:
+        if self.brightness < BR_LEVELS:
             self.brightness += 1
         if debug:
-            print("brup" + str(self.brightness))
+            print("brup " + str(self.brightness))
         send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
     def send_brdown(self):
@@ -245,7 +246,7 @@ class joofo_lamp:
         if self.brightness > 1:
             self.brightness -= 1
         if debug:
-            print("brdown" + str(self.brightness))
+            print("brdown " + str(self.brightness))
         send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
 
     def send_cct(self):
@@ -258,16 +259,16 @@ class joofo_lamp:
 
     def set_brightness_level(self, level):
         if debug:
-            print("Setting brightness, requested:" + str(level))
+            print("Setting brightness, requested: " + str(level))
         # Lamp has 10 brightness levels (plus off)
         # but HomeKit has 100 brightness levels
         # Reduce it to our range and round it - we only have 10 brightness
         # levels
-        level = ceil(level/10)
+        level = ceil(level*BR_LEVELS/100)
         # Turning brightness to zero is handled by turning the lamp off from
         # homekit
-        if level == 0:
-            level = 1
+        #if level == 0:
+        #    level = 1
         
         # Homekit does this for us
         #if level == 0:
@@ -279,18 +280,18 @@ class joofo_lamp:
             return
 
         if debug:
-            print("Rounded:" + str(level))
+            print("Rounded: " + str(level))
 
         # Take the brightness to the required level
         while self.brightness < level:
             self.send_brup()
             if debug:
-                print("Level:" + str(level))
+                print("Level: " + str(level))
 
         while self.brightness > level:
             self.send_brdown()
             if debug:
-                print("Level:" + str(level))
+                print("Level: " + str(level))
 
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate
@@ -302,8 +303,8 @@ class joofo_lamp:
         # The following method is slower.
         # Lower brightness to minimum level - Does NOT cause lamp to turn off
         # After this, lamp is known on at brightness 1
-        # Could probably just use 0-10, but use 0-11 to be sure
-        #for i in range(0,11):
+        # Could probably just use 0-BR_LEVELS, but use 0-BR_LEVELS + 1 to be sure
+        #for i in range(0,BR_LEVELS + 1):
         #    print(i)
         #    self.send_brdown()
 
@@ -312,6 +313,7 @@ class joofo_lamp:
         # Turning the lamp on with BRUP sets the brightness to 2
         # Rather than 1...... which is a weird choice, but hey
         # It wasn't MY choice
+        #TODO: This may need updating
         self.brightness = 2 
         # Can't actually change the temp, but eh
         self.color_temperature = 0
@@ -324,12 +326,12 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     new_lamp = joofo_lamp(lamp_id, client)
     lamp_list.append(new_lamp)
 
-    print("Created lamp:" + str(lamp_id))
+    print("Created lamp: " + str(lamp_id))
     return new_lamp
 
 def send_rf(message):
     print("Sending: " + str(message))
-    rfdevice = RFDevice(args.gpio)
+    rfdevice = RFDevice(args.gpio, tx_repeat=2)
     rfdevice.enable_tx()
     rfdevice.tx_code(int(message), args.protocol, args.pulselength)
     rfdevice.cleanup()
@@ -360,7 +362,7 @@ if args.code:
     logging.info(str(args.code) +
                  " [protocol: " + str(protocol) +
                  ", pulselength: " + str(pulselength) + "]")
-    rfdevice = RFDevice(args.gpio)
+    rfdevice = RFDevice(args.gpio, tx_repeat=2)
     rfdevice.enable_tx()
     rfdevice.tx_code(args.code, args.protocol, args.pulselength)
     rfdevice.cleanup()

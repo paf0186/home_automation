@@ -25,7 +25,7 @@ parser.add_argument('-s', dest='sendtime', default=None,
                     help="Send time in seconds (Default: 0.1)")
 args = parser.parse_args()
 
-rfdevice = RFDevice(args.gpio)
+rfdevice = RFDevice(args.gpio, tx_repeat=2)
 rfdevice.enable_tx()
 
 if args.protocol:
@@ -50,15 +50,17 @@ logging.info(str(args.code) +
 ON_OFF=3513634
 PULSELENGTH=161
 PROTO=1
-
-while True:
+i = 0
+while i < 32:
     print("Sending")
     rfdevice.tx_code(args.code, args.protocol, args.pulselength)
     if float(sendtime) != 0:
         print("Sleeping...")
         sleep(0.7)
-    if sendtime == 0:
-        break
-    elif time.time() > timeout:
-        break
+    #if sendtime == 0:
+    #    break
+    #elif time.time() > timeout:
+    #    break
+    i += 1
+    sleep(0.05)
 rfdevice.cleanup()
