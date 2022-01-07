@@ -48,6 +48,12 @@ MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
 CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
 BR_LEVELS=33
 
+# If a gap between two messages is less than this, they're from the same button
+# press.  For on/off and change color temp (cct), they should be disregarded.
+# For BR_UP/BR_DOWN, I'm not sure yet - I think not.  Or perhaps the rules are
+# different...  There may still be a gap factor.
+MIN_GAP=200000
+
 BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
 RESET_TOPIC = "Reset"
 ON_OFF_TOPIC = "OnOff"
@@ -78,7 +84,7 @@ def on_off_lr(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.send_on_off(payload, False)
+    lamp.on_off(payload, True)
 
 def set_br_lr(client, userdata, message):
     if debug:
@@ -94,7 +100,7 @@ def set_cct_lr(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.send_cct()
+    lamp.cct(True)
 
 def on_off_st(client, userdata, message):
     if debug:
@@ -102,7 +108,7 @@ def on_off_st(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    lamp.send_on_off(payload, False)
+    lamp.on_off(payload, True)
 
 def set_br_st(client, userdata, message):
     if debug:
@@ -118,7 +124,7 @@ def set_cct_st(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    lamp.send_cct()
+    lamp.cct(True)
 
 def on_off_st_desk(client, userdata, message):
     if debug:
@@ -126,7 +132,7 @@ def on_off_st_desk(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    lamp.send_on_off(payload, False)
+    lamp.on_off(payload, True)
 
 def set_br_st_desk(client, userdata, message):
     if debug:
@@ -142,7 +148,7 @@ def set_cct_st_desk(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    lamp.send_cct()
+    lamp.cct(True)
 
 def on_off_st_table(client, userdata, message):
     if debug:
@@ -150,7 +156,7 @@ def on_off_st_table(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
-    lamp.send_on_off(payload, False)
+    lamp.on_off(payload, True)
 
 def set_br_st_table(client, userdata, message):
     if debug:
@@ -166,7 +172,7 @@ def set_cct_st_table(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info("received message =" + payload)
     lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
-    lamp.send_cct()
+    lamp.cct(True)
 
 class joofo_lamp:
     # This is the numeric value used as the base for commands
@@ -227,40 +233,77 @@ class joofo_lamp:
     #        send_rf(self.lamp_id + ON_OFF_OFFSET)
     #        self.on = False
 
-    def send_on_off(self, setting, reset):
+    def on_off(self, setting, send):
+        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",ON_OFF_TOPIC)
         if setting == "true":
             on = True
-        else:
+        elif setting == "false":
             on = False
-        if self.on != on or reset:
+        else:
+            on = None
+
+        if self.on != on:
             self.reset = False
             self.on = not self.on
-            send_rf(self.lamp_id + ON_OFF_OFFSET)
+            if self.on:
+                status = "true"
+            else:
+                status = "false"
+            print("Status: " + status)
+            print(topic_string)
+            client.publish(topic_string, payload=status, qos=0, retain=False)
+            if send:
+                send_rf(self.lamp_id + ON_OFF_OFFSET)
 
-    def send_brup(self):
+    def brup(self, send):
+        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
         self.reset = False
-        self.on = True
+        self.on_off("true", False)
         if self.brightness < BR_LEVELS:
-            self.brightness += 1
+            if send:
+                self.brightness += 1
+            else:
+                #TODO: Add constant here
+                self.brightness += BR_LEVELS/58
+        if self.brightness > BR_LEVELS:
+            self.brightness = BR_LEVELS
         if debug:
             print("brup " + str(self.brightness))
-        send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
+        status=math.ceil(self.brightness*100/BR_LEVELS)
+        print(status)
+        client.publish(topic_string, payload=status, qos=0, retain=False)
+        if send:
+            send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
-    def send_brdown(self):
+    def brdown(self, send):
+        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
         self.reset = False
         if self.brightness > 1:
-            self.brightness -= 1
+            if send:
+                self.brightness -= 1
+            else:
+                self.brightness -= BR_LEVELS/58
+        if self.brightness < 0:
+            self.brightness = 0
         if debug:
             print("brdown " + str(self.brightness))
-        send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
+        status=math.ceil(self.brightness*100/32)
+        print(status)
+        client.publish(topic_string, payload=status, qos=0, retain=False)
+        if send:
+            send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
 
-    def send_cct(self):
+    def cct(self, send):
+        # TODO: Not sure what to do here - these color temps don't really match
+        # And I can't reset them...  Hm.
+        #topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",CCT_TOPIC)
         self.reset = False
         self.color_temp += 1
         # Trivial 0-1-2 cycle
         if self.color_temp == 3:
             self.color_temp = 0
-        send_rf(self.lamp_id + CCT_OFFSET)
+        if send:
+            send_rf(self.lamp_id + CCT_OFFSET)
 
     def set_brightness_level(self, level):
         if debug:
@@ -280,7 +323,7 @@ class joofo_lamp:
         #    return
 
         # No need to change it
-        if level == self.brightness:
+        if level == math.ceil(self.brightness):
             return
 
         if debug:
@@ -288,37 +331,37 @@ class joofo_lamp:
 
         # Take the brightness to the required level
         while self.brightness < level:
-            self.send_brup()
+            self.brup(True)
             if debug:
                 print("Level: " + str(level))
 
         while self.brightness > level:
-            self.send_brdown()
+            self.brdown(True)
             if debug:
                 print("Level: " + str(level))
 
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate
-        self.send_brup()
+        self.brup(True)
         # After: Lamp is off
-        self.send_on_off(True, True)
+        self.on_off("false", True)
         # After: Lamp brightness is now 2
-        self.send_brup()
+        self.brup(True)
+
         # The following method is slower.
         # Lower brightness to minimum level - Does NOT cause lamp to turn off
         # After this, lamp is known on at brightness 1
         # Could probably just use 0-BR_LEVELS, but use 0-BR_LEVELS + 1 to be sure
         #for i in range(0,BR_LEVELS + 1):
         #    print(i)
-        #    self.send_brdown()
+        #    self.send_brdown(True)
 
         self.reset = True
-        self.on = True
         # Turning the lamp on with BRUP sets the brightness to 2
         # Rather than 1...... which is a weird choice, but hey
         # It wasn't MY choice
         #TODO: This may need updating
-        self.brightness = 2 
+        self.brightness = 1 
         # Can't actually change the temp, but eh
         self.color_temperature = 0
 
@@ -333,8 +376,30 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     print("Created lamp: " + str(lamp_id))
     return new_lamp
 
+def handle_rx(code, timestamp, gap):
+    lamp, command = decode_rx(code, timestamp)
+    if command == ON_OFF_OFFSET or command == CCT_OFFSET:
+        # This command is from a single button press
+        if gap < MIN_GAP:
+            print("Skipping command")
+            return
+
+    if command == ON_OFF_OFFSET:
+        lamp.on_off(None, False)
+
+    if command == CCT_OFFSET:
+        lamp.cct(False)
+
+    if command == BRIGHTNESS_UP_OFFSET:
+        lamp.brup(False)
+
+    if command == BRIGHTNESS_DOWN_OFFSET:
+        lamp.brdown(False)
+
+    return
+
 # Decode a message off the wire
-def decode_rx(code):
+def decode_rx(code, timestamp):
     target_lamp=None
     for lamp in lamp_list:
         if abs(int(code) - int(lamp.lamp_id)) <= MAX_OFFSET:
@@ -345,7 +410,7 @@ def decode_rx(code):
     command = int(code) - int(target_lamp.lamp_id)
     if command not in CMDS2NAMES.keys():
         return (None, None)
-    print("Code: " + str(code))
+    print("Code: " + str(code) + " TS: " + str(timestamp))
     print(LAMPS2NAMES[target_lamp.lamp_id])
     print(CMDS2NAMES[command])
     return (target_lamp,command)
@@ -395,19 +460,24 @@ else:
     timestamp = None
     # We check this every time this thread blocks, hence the sleep in the loop
     # below.
-    client.loop_forever()
+    #client.loop_forever()
     client.loop_start()
     # So this loop receives the message
     # and so I have to figure how to match this to the lamp state
     # but I also have to figure out how to make the lamp queryable
     while True:
         if rxdevice.rx_code_timestamp != timestamp:
+            # Don't ignore the first command
+            gap = MIN_GAP + 1
+            if timestamp is not None:
+                gap = rxdevice.rx_code_timestamp - timestamp
+            print("Gap: " + str(gap))
             timestamp = rxdevice.rx_code_timestamp
             #logging.info(str(rxdevice.rx_code) +
             #             " [pulselength " + str(rxdevice.rx_pulselength) +
             #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
             code = rxdevice.rx_code
-            decode_rx(code)
+            handle_rx(code, timestamp, gap)
             #print(str(code) +
             #             " [pulselength " + str(rxdevice.rx_pulselength) +
             #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
