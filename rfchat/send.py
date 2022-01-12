@@ -51,7 +51,7 @@ ON_OFF=3513634
 PULSELENGTH=161
 PROTO=1
 i = 0
-while i < 32:
+while i < 10000:
     print("Sending")
     rfdevice.tx_code(args.code, args.protocol, args.pulselength)
     if float(sendtime) != 0:
@@ -62,5 +62,5 @@ while i < 32:
     #elif time.time() > timeout:
     #    break
     i += 1
-    sleep(0.05)
+    #sleep(0.05)
 rfdevice.cleanup()
