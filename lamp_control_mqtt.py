@@ -46,7 +46,7 @@ BRIGHTNESS_UP_OFFSET = 3
 BRIGHTNESS_DOWN_OFFSET = 7
 MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
 CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
-BR_LEVELS=33
+BR_LEVELS=30
 
 # If a gap between two messages is less than this, they're from the same button
 # press.  For on/off and change color temp (cct), they should be disregarded.
@@ -264,7 +264,7 @@ class joofo_lamp:
                 self.brightness += 1
             else:
                 #TODO: Add constant here
-                self.brightness += BR_LEVELS/58
+                self.brightness += BR_LEVELS/25
         if self.brightness > BR_LEVELS:
             self.brightness = BR_LEVELS
         if debug:
@@ -373,7 +373,7 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     new_lamp = joofo_lamp(lamp_id, client)
     lamp_list.append(new_lamp)
 
-    print("Created lamp: " + str(lamp_id))
+    print("Created lamp: " + LAMPS2NAMES[lamp_id] + " (" + str(lamp_id) + ")")
     return new_lamp
 
 def handle_rx(code, timestamp, gap):
@@ -406,9 +406,11 @@ def decode_rx(code, timestamp):
             target_lamp=lamp
 
     if target_lamp is None:
+        print("Lamp not found!  Code: " + str(code))
         return (None,None)
     command = int(code) - int(target_lamp.lamp_id)
     if command not in CMDS2NAMES.keys():
+        print("Command not found!  Code: " + str(code))
         return (None, None)
     print("Code: " + str(code) + " TS: " + str(timestamp))
     print(LAMPS2NAMES[target_lamp.lamp_id])
@@ -452,6 +454,7 @@ if args.code:
     txdevice.enable_tx()
     txdevice.tx_code(args.code, args.protocol, args.pulselength)
     txdevice.cleanup()
+    sleep(RF_DELAY)
 else:
     logging.info("Waiting for mqtt messages.")
     #client.loop_forever()
