@@ -46,7 +46,7 @@ BRIGHTNESS_UP_OFFSET = 3
 BRIGHTNESS_DOWN_OFFSET = 7
 MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
 CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
-BR_LEVELS=30
+BR_LEVELS=36
 
 # If a gap between two messages is less than this, they're from the same button
 # press.  For on/off and change color temp (cct), they should be disregarded.
@@ -255,31 +255,35 @@ class joofo_lamp:
             if send:
                 send_rf(self.lamp_id + ON_OFF_OFFSET)
 
-    def brup(self, send):
+    def brup(self, received, publish):
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
         self.reset = False
         self.on_off("true", False)
         if self.brightness < BR_LEVELS:
-            if send:
+            if not received:
                 self.brightness += 1
             else:
                 #TODO: Add constant here
+                # I guess this was an estimate of how far the received ones
+                # from the remote move the lamp?  Oh dear...
                 self.brightness += BR_LEVELS/25
+                self.brightness = math.ceil(self.brightness)
         if self.brightness > BR_LEVELS:
             self.brightness = BR_LEVELS
         if debug:
             print("brup " + str(self.brightness))
         status=math.ceil(self.brightness*100/BR_LEVELS)
         print(status)
-        client.publish(topic_string, payload=status, qos=0, retain=False)
-        if send:
+        if publish:
+            client.publish(topic_string, payload=status, qos=0, retain=False)
+        if not received:
             send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
-    def brdown(self, send):
+    def brdown(self, received, publish):
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
         self.reset = False
         if self.brightness > 1:
-            if send:
+            if not received:
                 self.brightness -= 1
             else:
                 self.brightness -= BR_LEVELS/58
@@ -289,12 +293,13 @@ class joofo_lamp:
             print("brdown " + str(self.brightness))
         status=math.ceil(self.brightness*100/32)
         print(status)
-        client.publish(topic_string, payload=status, qos=0, retain=False)
-        if send:
+        if publish:
+            client.publish(topic_string, payload=status, qos=0, retain=False)
+        if not received:
             send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
 
     def cct(self, send):
-        # TODO: Not sure what to do here - these color temps don't really match
+        # Not sure what to do here - these color temps don't really match
         # And I can't reset them...  Hm.
         #topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",CCT_TOPIC)
         self.reset = False
@@ -330,23 +335,33 @@ class joofo_lamp:
             print("Rounded: " + str(level))
 
         # Take the brightness to the required level
-        while self.brightness < level:
-            self.brup(True)
-            if debug:
-                print("Level: " + str(level))
-
-        while self.brightness > level:
-            self.brdown(True)
-            if debug:
-                print("Level: " + str(level))
+        if self.brightness < level:
+            while self.brightness < level:
+                # Only publish the last time
+                if self.brightness + 1 >= level:
+                    self.brup(False, True)
+                else:
+                    self.brup(False, False)
+                if debug:
+                    print("Level: " + str(level))
+        elif self.brightness > level:
+            while self.brightness > level:
+                if self.brightness - 1 <= level:
+                    print("PUBLISHING, level :" + str(level) + "br: " + str(self.brightness))
+                    self.brdown(False, True)
+                else:
+                    self.brdown(False, False)
+                if debug:
+                    print("Level: " + str(level))
 
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate
-        self.brup(True)
+        self.brup(False, False)
         # After: Lamp is off
         self.on_off("false", True)
+        self.brightness = 1
         # After: Lamp brightness is now 2
-        self.brup(True)
+        self.brup(False, True)
 
         # The following method is slower.
         # Lower brightness to minimum level - Does NOT cause lamp to turn off
@@ -360,8 +375,7 @@ class joofo_lamp:
         # Turning the lamp on with BRUP sets the brightness to 2
         # Rather than 1...... which is a weird choice, but hey
         # It wasn't MY choice
-        #TODO: This may need updating
-        self.brightness = 1 
+
         # Can't actually change the temp, but eh
         self.color_temperature = 0
 
@@ -391,10 +405,10 @@ def handle_rx(code, timestamp, gap):
         lamp.cct(False)
 
     if command == BRIGHTNESS_UP_OFFSET:
-        lamp.brup(False)
+        lamp.brup(True, True)
 
     if command == BRIGHTNESS_DOWN_OFFSET:
-        lamp.brdown(False)
+        lamp.brdown(True, True)
 
     return
 
