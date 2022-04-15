@@ -47,6 +47,12 @@ BRIGHTNESS_DOWN_OFFSET = 7
 MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
 CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
 BR_LEVELS=36
+REMOTE_BRUP_LEVELS=30
+REMOTE_BRDOWN_LEVELS=34
+HK_BR_MAX=100
+BR_INCREMENT=HK_BR_MAX/BR_LEVELS
+REMOTE_BRUP_INCREMENT=HK_BR_MAX/REMOTE_BRUP_LEVELS
+REMOTE_BRDOWN_INCREMENT=HK_BR_MAX/REMOTE_BRDOWN_LEVELS
 
 # If a gap between two messages is less than this, they're from the same button
 # press.  For on/off and change color temp (cct), they should be disregarded.
@@ -179,9 +185,9 @@ class joofo_lamp:
     lamp_id = 0
     # on_off state
     on = False
-    # Range from 0-BR_LEVELS; 0 is off
+    # Range from 0-HK_BR_MAX; 0 is off
     brightness = 0
-    # reset to on at 1 brightness & no other changes made
+    # reset to on at BR_INCREMENT brightness & no other changes made
     reset = False
     # Can't determine this, but let's just put it in
     color_temp = 0
@@ -259,22 +265,23 @@ class joofo_lamp:
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
         self.reset = False
         self.on_off("true", False)
-        if self.brightness < BR_LEVELS:
+        if self.brightness < HK_BR_MAX:
             if not received:
-                self.brightness += 1
+                self.brightness += BR_INCREMENT
             else:
                 #TODO: Add constant here
                 # I guess this was an estimate of how far the received ones
                 # from the remote move the lamp?  Oh dear...
-                self.brightness += BR_LEVELS/25
-                self.brightness = math.ceil(self.brightness)
-        if self.brightness > BR_LEVELS:
-            self.brightness = BR_LEVELS
+                self.brightness += REMOTE_BRUP_INCREMENT
+                #self.brightness += HK_BR_MAX/25
+        if self.brightness > HK_BR_MAX:
+            self.brightness = HK_BR_MAX
         if debug:
             print("brup " + str(self.brightness))
-        status=math.ceil(self.brightness*100/BR_LEVELS)
+        status=math.ceil(self.brightness)
         print(status)
         if publish:
+            print("PUBLISHING (brup) " + topic_string)
             client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
@@ -284,16 +291,18 @@ class joofo_lamp:
         self.reset = False
         if self.brightness > 1:
             if not received:
-                self.brightness -= 1
+                self.brightness -= BR_INCREMENT
             else:
-                self.brightness -= BR_LEVELS/58
-        if self.brightness < 0:
-            self.brightness = 0
+                self.brightness -= REMOTE_BRDOWN_INCREMENT
+                #self.brightness -= HK_BR_MAX/25
+        if self.brightness <= 0:
+            self.brightness = 1
         if debug:
             print("brdown " + str(self.brightness))
-        status=math.ceil(self.brightness*100/32)
+        status=math.ceil(self.brightness)
         print(status)
         if publish:
+            print("PUBLISHING (brdown) " + topic_string)
             client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
@@ -315,8 +324,8 @@ class joofo_lamp:
             print("Setting brightness, requested: " + str(level))
         # Lamp has BR_LEVELS brightness levels (plus off)
         # but HomeKit has 100 brightness levels
-        # Reduce it to our range and round it
-        level = ceil(level*BR_LEVELS/100)
+        # We store HomeKit brightness internally & convert in tx/rx with lamp
+
         # Turning brightness to zero is handled by turning the lamp off from
         # homekit
         if level == 0:
@@ -338,7 +347,8 @@ class joofo_lamp:
         if self.brightness < level:
             while self.brightness < level:
                 # Only publish the last time
-                if self.brightness + 1 >= level:
+                if self.brightness + BR_INCREMENT >= level:
+                    print("PUBLISHING, level :" + str(level) + "br: " + str(self.brightness))
                     self.brup(False, True)
                 else:
                     self.brup(False, False)
@@ -346,7 +356,7 @@ class joofo_lamp:
                     print("Level: " + str(level))
         elif self.brightness > level:
             while self.brightness > level:
-                if self.brightness - 1 <= level:
+                if self.brightness - BR_INCREMENT <= level:
                     print("PUBLISHING, level :" + str(level) + "br: " + str(self.brightness))
                     self.brdown(False, True)
                 else:
@@ -354,13 +364,26 @@ class joofo_lamp:
                 if debug:
                     print("Level: " + str(level))
 
+        # Do a few extras at the boundary to account for inconsistencies in the
+        # lamp receiver
+        if level == 100:
+            self.brup(False, False)
+            self.brup(False, False)
+            self.brup(False, False)
+            self.brup(False, False)
+        if level <= BR_INCREMENT:
+            self.brdown(False, False)
+            self.brdown(False, False)
+            self.brdown(False, False)
+            self.brdown(False, False)
+
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate
         self.brup(False, False)
         # After: Lamp is off
         self.on_off("false", True)
         self.brightness = 1
-        # After: Lamp brightness is now 2
+        # After: Lamp brightness is now 1 + BR_INCREMENT
         self.brup(False, True)
 
         # The following method is slower.
