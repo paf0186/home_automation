@@ -316,8 +316,8 @@ class joofo_lamp:
         # Trivial 0-1-2 cycle
         if self.color_temp == 3:
             self.color_temp = 0
-        if send:
-            send_rf(self.lamp_id + CCT_OFFSET)
+        #if send:
+        #    send_rf(self.lamp_id + CCT_OFFSET)
 
     def set_brightness_level(self, level):
         if debug:
