@@ -480,7 +480,7 @@ def on_connect(mqttc, obj, flags, rc):
 client =mqtt.Client("homebridge_mqtt_rfclient")
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
-client.connect("192.168.50.222")
+client.connect("192.168.50.221")
 
 if args.code:
     print("Sending one message.")
