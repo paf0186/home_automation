@@ -78,9 +78,9 @@ lamp_list = []
 
 def reset_lamp(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
+    logging.info(f"received message = {payload}")
     if debug:
-        print("on reset lamp " + payload)
+        logging.debug(f"on reset lamp {payload}")
     lamp = find_or_create_lamp(lamp_list, int(payload), client)
     lamp.reset_lamp()
 
@@ -99,7 +99,7 @@ def create_lamp_callback(lamp_id, lamp_name, command_type):
         payload = str(message.payload.decode("utf-8"))
         logging.info(f"received message = {payload}")
         if debug:
-            print(f"{lamp_name} {command_type} lamp")
+            logging.debug(f"{lamp_name} {command_type} lamp")
 
         lamp = find_or_create_lamp(lamp_list, lamp_id, client)
 
@@ -132,7 +132,7 @@ class joofo_lamp:
 
         # Subscribe to reset topic (shared by all lamps)
         topic_string = f"{BASE_TOPIC}set{RESET_TOPIC}"
-        print(f"RESET TOPIC SUB: {topic_string}")
+        logging.info(f"RESET TOPIC SUB: {topic_string}")
         client.message_callback_add(topic_string, reset_lamp)
 
         # Subscribe to lamp-specific topics using factory function
@@ -144,17 +144,9 @@ class joofo_lamp:
 
         for command_type, topic_suffix in commands:
             topic_string = f"{BASE_TOPIC}{lamp_id}/set{topic_suffix}"
-            print(f"{topic_suffix.upper()} TOPIC SUB: {topic_string}")
+            logging.info(f"{topic_suffix.upper()} TOPIC SUB: {topic_string}")
             callback = create_lamp_callback(lamp_id, lamp_name, command_type)
             client.message_callback_add(topic_string, callback)
-
-
-    # If it's on, turn it off.  Otherwise, do nothing.
-    #def turn_off(self):
-    #    if self.on:
-    #        self.reset = False
-    #        send_rf(self.lamp_id + ON_OFF_OFFSET)
-    #        self.on = False
 
     def on_off(self, setting, send):
         topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",ON_OFF_TOPIC)
@@ -172,8 +164,8 @@ class joofo_lamp:
                 status = "true"
             else:
                 status = "false"
-            print("Status: " + status)
-            print(topic_string)
+            logging.debug(f"Status: {status}")
+            logging.debug(f"Publishing to: {topic_string}")
             client.publish(topic_string, payload=status, qos=0, retain=False)
             if send:
                 send_rf(self.lamp_id + ON_OFF_OFFSET)
@@ -186,19 +178,15 @@ class joofo_lamp:
             if not received:
                 self.brightness += BR_INCREMENT
             else:
-                #TODO: Add constant here
-                # I guess this was an estimate of how far the received ones
-                # from the remote move the lamp?  Oh dear...
                 self.brightness += REMOTE_BRUP_INCREMENT
-                #self.brightness += HK_BR_MAX/25
         if self.brightness > HK_BR_MAX:
             self.brightness = HK_BR_MAX
         if debug:
-            print("brup " + str(self.brightness))
+            logging.debug(f"brup {self.brightness}")
         status=math.ceil(self.brightness)
-        print(status)
+        logging.debug(f"Brightness status: {status}")
         if publish:
-            print("PUBLISHING (brup) " + topic_string)
+            logging.debug(f"PUBLISHING (brup) {topic_string}")
             client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
@@ -211,15 +199,14 @@ class joofo_lamp:
                 self.brightness -= BR_INCREMENT
             else:
                 self.brightness -= REMOTE_BRDOWN_INCREMENT
-                #self.brightness -= HK_BR_MAX/25
         if self.brightness <= 0:
             self.brightness = 1
         if debug:
-            print("brdown " + str(self.brightness))
+            logging.debug(f"brdown {self.brightness}")
         status=math.ceil(self.brightness)
-        print(status)
+        logging.debug(f"Brightness status: {status}")
         if publish:
-            print("PUBLISHING (brdown) " + topic_string)
+            logging.debug(f"PUBLISHING (brdown) {topic_string}")
             client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
@@ -227,18 +214,15 @@ class joofo_lamp:
     def cct(self, send):
         # Not sure what to do here - these color temps don't really match
         # And I can't reset them...  Hm.
-        #topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",CCT_TOPIC)
         self.reset = False
         self.color_temp += 1
         # Trivial 0-1-2 cycle
         if self.color_temp == 3:
             self.color_temp = 0
-        #if send:
-        #    send_rf(self.lamp_id + CCT_OFFSET)
 
     def set_brightness_level(self, level):
         if debug:
-            print("Setting brightness, requested: " + str(level))
+            logging.debug(f"Setting brightness, requested: {level}")
         # Lamp has BR_LEVELS brightness levels (plus off)
         # but HomeKit has 100 brightness levels
         # We store HomeKit brightness internally & convert in tx/rx with lamp
@@ -247,39 +231,34 @@ class joofo_lamp:
         # homekit
         if level == 0:
             level = 1
-        
-        # Homekit does this for us
-        #if level == 0:
-        #    self.turn_off()
-        #    return
 
         # No need to change it
         if level == math.ceil(self.brightness):
             return
 
         if debug:
-            print("Rounded: " + str(level))
+            logging.debug(f"Rounded: {level}")
 
         # Take the brightness to the required level
         if self.brightness < level:
             while self.brightness < level:
                 # Only publish the last time
                 if self.brightness + BR_INCREMENT >= level:
-                    print("PUBLISHING, level :" + str(level) + "br: " + str(self.brightness))
+                    logging.debug(f"PUBLISHING, level: {level} br: {self.brightness}")
                     self.brup(False, True)
                 else:
                     self.brup(False, False)
                 if debug:
-                    print("Level: " + str(level))
+                    logging.debug(f"Level: {level}")
         elif self.brightness > level:
             while self.brightness > level:
                 if self.brightness - BR_INCREMENT <= level:
-                    print("PUBLISHING, level :" + str(level) + "br: " + str(self.brightness))
+                    logging.debug(f"PUBLISHING, level: {level} br: {self.brightness}")
                     self.brdown(False, True)
                 else:
                     self.brdown(False, False)
                 if debug:
-                    print("Level: " + str(level))
+                    logging.debug(f"Level: {level}")
 
         # Do a few extras at the boundary to account for inconsistencies in the
         # lamp receiver
@@ -303,14 +282,6 @@ class joofo_lamp:
         # After: Lamp brightness is now 1 + BR_INCREMENT
         self.brup(False, True)
 
-        # The following method is slower.
-        # Lower brightness to minimum level - Does NOT cause lamp to turn off
-        # After this, lamp is known on at brightness 1
-        # Could probably just use 0-BR_LEVELS, but use 0-BR_LEVELS + 1 to be sure
-        #for i in range(0,BR_LEVELS + 1):
-        #    print(i)
-        #    self.send_brdown(True)
-
         self.reset = True
         # Turning the lamp on with BRUP sets the brightness to 2
         # Rather than 1...... which is a weird choice, but hey
@@ -327,30 +298,28 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
     new_lamp = joofo_lamp(lamp_id, client)
     lamp_list.append(new_lamp)
 
-    print("Created lamp: " + LAMPS2NAMES[lamp_id] + " (" + str(lamp_id) + ")")
+    logging.info(f"Created lamp: {LAMPS2NAMES[lamp_id]} ({lamp_id})")
     return new_lamp
 
 def handle_rx(code, timestamp, gap):
     lamp, command = decode_rx(code, timestamp)
-    if command == ON_OFF_OFFSET or command == CCT_OFFSET:
-        # This command is from a single button press
-        if gap < MIN_GAP:
-            print("Skipping command")
-            return
+
+    if lamp is None or command is None:
+        return
+
+    # Skip duplicate commands from same button press
+    if command in (ON_OFF_OFFSET, CCT_OFFSET) and gap < MIN_GAP:
+        logging.debug("Skipping duplicate command")
+        return
 
     if command == ON_OFF_OFFSET:
         lamp.on_off(None, False)
-
-    if command == CCT_OFFSET:
+    elif command == CCT_OFFSET:
         lamp.cct(False)
-
-    if command == BRIGHTNESS_UP_OFFSET:
+    elif command == BRIGHTNESS_UP_OFFSET:
         lamp.brup(True, True)
-
-    if command == BRIGHTNESS_DOWN_OFFSET:
+    elif command == BRIGHTNESS_DOWN_OFFSET:
         lamp.brdown(True, True)
-
-    return
 
 # Decode a message off the wire
 def decode_rx(code, timestamp):
@@ -360,19 +329,19 @@ def decode_rx(code, timestamp):
             target_lamp=lamp
 
     if target_lamp is None:
-        print("Lamp not found!  Code: " + str(code))
+        logging.warning(f"Lamp not found!  Code: {code}")
         return (None,None)
     command = int(code) - int(target_lamp.lamp_id)
     if command not in CMDS2NAMES.keys():
-        print("Command not found!  Code: " + str(code))
+        logging.warning(f"Command not found!  Code: {code}")
         return (None, None)
-    print("Code: " + str(code) + " TS: " + str(timestamp))
-    print(LAMPS2NAMES[target_lamp.lamp_id])
-    print(CMDS2NAMES[command])
+    logging.info(f"Code: {code} TS: {timestamp}")
+    logging.info(f"Lamp: {LAMPS2NAMES[target_lamp.lamp_id]}")
+    logging.info(f"Command: {CMDS2NAMES[command]}")
     return (target_lamp,command)
 
 def send_rf(message):
-    print("Sending: " + str(message))
+    logging.debug(f"Sending: {message}")
     txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
     txdevice.enable_tx()
     txdevice.tx_code(int(message), args.protocol, args.pulselength)
@@ -381,12 +350,19 @@ def send_rf(message):
     sleep(RF_DELAY)
 
 def on_disconnect(mqttc, userdata, rc):
-    print("Disconnected.  Will try to reconnect.")
+    if rc != 0:
+        logging.warning(f"Unexpected disconnect (rc={rc}). Reconnecting...")
+        try:
+            mqttc.reconnect()
+        except Exception as e:
+            logging.error(f"Reconnection failed: {e}")
+    else:
+        logging.info("Clean disconnect.")
 
 def on_connect(mqttc, obj, flags, rc):
-    print("Connected.")
-    topic_string = "{}#".format(BASE_TOPIC)
-    print("Subscribing to:" + topic_string)
+    logging.info("Connected.")
+    topic_string = f"{BASE_TOPIC}#"
+    logging.info(f"Subscribing to: {topic_string}")
     client.subscribe(topic_string, qos=0)
 
     find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
@@ -397,14 +373,11 @@ def on_connect(mqttc, obj, flags, rc):
 client =mqtt.Client("homebridge_mqtt_rfclient")
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
-#client.connect("192.168.50.221")
 client.connect("localhost")
 
 if args.code:
-    print("Sending one message.")
-    logging.info(str(args.code) +
-                 " [protocol: " + str(protocol) +
-                 ", pulselength: " + str(pulselength) + "]")
+    logging.info("Sending one message.")
+    logging.info(f"{args.code} [protocol: {protocol}, pulselength: {pulselength}]")
     txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
     txdevice.enable_tx()
     txdevice.tx_code(args.code, args.protocol, args.pulselength)
@@ -412,33 +385,20 @@ if args.code:
     sleep(RF_DELAY)
 else:
     logging.info("Waiting for mqtt messages.")
-    #client.loop_forever()
     rxdevice = RFDevice(args.gpio_rx)
     rxdevice.enable_rx()
     timestamp = None
-    # We check this every time this thread blocks, hence the sleep in the loop
-    # below.
-    #client.loop_forever()
     client.loop_start()
-    # So this loop receives the message
-    # and so I have to figure how to match this to the lamp state
-    # but I also have to figure out how to make the lamp queryable
     while True:
         if rxdevice.rx_code_timestamp != timestamp:
             # Don't ignore the first command
             gap = MIN_GAP + 1
             if timestamp is not None:
                 gap = rxdevice.rx_code_timestamp - timestamp
-            print("Gap: " + str(gap))
+            logging.debug(f"Gap: {gap}")
             timestamp = rxdevice.rx_code_timestamp
-            #logging.info(str(rxdevice.rx_code) +
-            #             " [pulselength " + str(rxdevice.rx_pulselength) +
-            #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
             code = rxdevice.rx_code
             handle_rx(code, timestamp, gap)
-            #print(str(code) +
-            #             " [pulselength " + str(rxdevice.rx_pulselength) +
-            #             ", protocol " + str(rxdevice.rx_proto) + "] " + str(timestamp))
         # Basically we check for new RF messages this often.
         # This was determined experimentally - checking more often than this
         # didn't result in changes to message timestamps
