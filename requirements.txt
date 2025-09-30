@@ -1,0 +1,5 @@
+# Production dependencies
+paho-mqtt>=1.6.0
+RPi.GPIO>=0.7.0
+rpi-rf>=0.9.7
+

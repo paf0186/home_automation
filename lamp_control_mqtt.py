@@ -169,7 +169,7 @@ class joofo_lamp:
                 status = "false"
             logging.debug(f"Status: {status}")
             logging.debug(f"Publishing to: {topic_string}")
-            client.publish(topic_string, payload=status, qos=0, retain=False)
+            self.client.publish(topic_string, payload=status, qos=0, retain=False)
             if send:
                 send_rf(self.lamp_id + ON_OFF_OFFSET)
 
@@ -189,7 +189,7 @@ class joofo_lamp:
         logging.debug(f"Brightness status: {status}")
         if publish:
             logging.debug(f"PUBLISHING (brup) {topic_string}")
-            client.publish(topic_string, payload=status, qos=0, retain=False)
+            self.client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
@@ -208,7 +208,7 @@ class joofo_lamp:
         logging.debug(f"Brightness status: {status}")
         if publish:
             logging.debug(f"PUBLISHING (brdown) {topic_string}")
-            client.publish(topic_string, payload=status, qos=0, retain=False)
+            self.client.publish(topic_string, payload=status, qos=0, retain=False)
         if not received:
             send_rf(self.lamp_id + BRIGHTNESS_DOWN_OFFSET)
 
@@ -360,41 +360,47 @@ def on_connect(mqttc, obj, flags, rc):
     logging.info("Connected.")
     topic_string = f"{BASE_TOPIC}#"
     logging.info(f"Subscribing to: {topic_string}")
-    client.subscribe(topic_string, qos=0)
+    mqttc.subscribe(topic_string, qos=0)
 
-    find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
+    find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, mqttc)
+    find_or_create_lamp(lamp_list, STUDY_LAMPS, mqttc)
+    find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, mqttc)
+    find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, mqttc)
 
-client =mqtt.Client("homebridge_mqtt_rfclient")
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-client.connect("localhost")
+def main():
+    """Main entry point for the application."""
+    client = mqtt.Client("homebridge_mqtt_rfclient")
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.connect("localhost")
 
-if args.code:
-    logging.info("Sending one message.")
-    logging.info(f"{args.code} [protocol: {protocol}, pulselength: {pulselength}]")
-    txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
-    txdevice.enable_tx()
-    txdevice.tx_code(args.code, args.protocol, args.pulselength)
-    txdevice.cleanup()
-    sleep(RF_DELAY)
-else:
-    logging.info("Waiting for mqtt messages.")
-    rxdevice = RFDevice(args.gpio_rx)
-    rxdevice.enable_rx()
-    timestamp = None
-    client.loop_start()
-    while True:
-        if rxdevice.rx_code_timestamp != timestamp:
-            # Don't ignore the first command
-            gap = MIN_GAP + 1
-            if timestamp is not None:
-                gap = rxdevice.rx_code_timestamp - timestamp
-            logging.debug(f"Gap: {gap}")
-            timestamp = rxdevice.rx_code_timestamp
-            code = rxdevice.rx_code
-            handle_rx(code, timestamp, gap)
-        # Poll for new RF messages
-        sleep(RF_POLL_INTERVAL)
+    if args.code:
+        logging.info("Sending one message.")
+        logging.info(f"{args.code} [protocol: {protocol}, pulselength: {pulselength}]")
+        txdevice = RFDevice(args.gpio_tx, tx_repeat=2)
+        txdevice.enable_tx()
+        txdevice.tx_code(args.code, args.protocol, args.pulselength)
+        txdevice.cleanup()
+        sleep(RF_DELAY)
+    else:
+        logging.info("Waiting for mqtt messages.")
+        rxdevice = RFDevice(args.gpio_rx)
+        rxdevice.enable_rx()
+        timestamp = None
+        client.loop_start()
+        while True:
+            if rxdevice.rx_code_timestamp != timestamp:
+                # Don't ignore the first command
+                gap = MIN_GAP + 1
+                if timestamp is not None:
+                    gap = rxdevice.rx_code_timestamp - timestamp
+                logging.debug(f"Gap: {gap}")
+                timestamp = rxdevice.rx_code_timestamp
+                code = rxdevice.rx_code
+                handle_rx(code, timestamp, gap)
+            # Poll for new RF messages
+            sleep(RF_POLL_INTERVAL)
+
+
+if __name__ == "__main__":
+    main()
