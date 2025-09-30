@@ -37,36 +37,41 @@ if args.pulselength:
 else:
     pulselength = "default"
 
-debug = True
-
-# Command offsets
+# RF Command offsets - these are added to the lamp base ID to form RF codes
 ON_OFF_OFFSET = 0
 CCT_OFFSET = 1
 BRIGHTNESS_UP_OFFSET = 3
 BRIGHTNESS_DOWN_OFFSET = 7
-MAX_OFFSET=BRIGHTNESS_DOWN_OFFSET
-CMDS2NAMES={ON_OFF_OFFSET : "ON_OFF_OFFSET", CCT_OFFSET : "CCT_OFFSET", BRIGHTNESS_UP_OFFSET : "BRIGHTNESS_UP_OFFSET", BRIGHTNESS_DOWN_OFFSET : "BRIGHTNESS_DOWN_OFFSET"}
-BR_LEVELS=36
-REMOTE_BRUP_LEVELS=30
-REMOTE_BRDOWN_LEVELS=34
-HK_BR_MAX=100
-BR_INCREMENT=HK_BR_MAX/BR_LEVELS
-REMOTE_BRUP_INCREMENT=HK_BR_MAX/REMOTE_BRUP_LEVELS
-REMOTE_BRDOWN_INCREMENT=HK_BR_MAX/REMOTE_BRDOWN_LEVELS
+MAX_OFFSET = BRIGHTNESS_DOWN_OFFSET
+CMDS2NAMES = {
+    ON_OFF_OFFSET: "ON_OFF_OFFSET",
+    CCT_OFFSET: "CCT_OFFSET",
+    BRIGHTNESS_UP_OFFSET: "BRIGHTNESS_UP_OFFSET",
+    BRIGHTNESS_DOWN_OFFSET: "BRIGHTNESS_DOWN_OFFSET"
+}
 
-# If a gap between two messages is less than this, they're from the same button
-# press.  For on/off and change color temp (cct), they should be disregarded.
-# For BR_UP/BR_DOWN, I'm not sure yet - I think not.  Or perhaps the rules are
-# different...  There may still be a gap factor.
-MIN_GAP=200000
+# Brightness levels
+BR_LEVELS = 36  # Number of brightness steps the lamp supports
+REMOTE_BRUP_LEVELS = 30  # Estimated brightness steps from physical remote (up)
+REMOTE_BRDOWN_LEVELS = 34  # Estimated brightness steps from physical remote (down)
+HK_BR_MAX = 100  # HomeKit brightness scale (0-100)
+BR_INCREMENT = HK_BR_MAX / BR_LEVELS
+REMOTE_BRUP_INCREMENT = HK_BR_MAX / REMOTE_BRUP_LEVELS
+REMOTE_BRDOWN_INCREMENT = HK_BR_MAX / REMOTE_BRDOWN_LEVELS
 
+# RF timing constants
+# Minimum gap (in microseconds) between RF messages to be considered separate button presses
+# Messages closer than this are treated as duplicates from the same button press
+MIN_GAP = 200000  # 200ms in microseconds
+RF_DELAY = 0.05  # Delay after sending RF command (seconds)
+RF_POLL_INTERVAL = 0.0001  # How often to check for new RF messages (seconds)
+
+# MQTT topics
 BASE_TOPIC = "cmnd/joofo30w2400lm_control/"
 RESET_TOPIC = "Reset"
 ON_OFF_TOPIC = "OnOff"
 BRIGHTNESS_TOPIC = "Brightness"
 CCT_TOPIC = "cct"
-
-RF_DELAY = 0.05
 
 LIVING_ROOM_LAMP = 3513633
 STUDY_LAMPS = 13470497
@@ -79,8 +84,7 @@ lamp_list = []
 def reset_lamp(client, userdata, message):
     payload=str(message.payload.decode("utf-8"))
     logging.info(f"received message = {payload}")
-    if debug:
-        logging.debug(f"on reset lamp {payload}")
+    logging.debug(f"on reset lamp {payload}")
     lamp = find_or_create_lamp(lamp_list, int(payload), client)
     lamp.reset_lamp()
 
@@ -98,8 +102,7 @@ def create_lamp_callback(lamp_id, lamp_name, command_type):
     def callback(client, userdata, message):
         payload = str(message.payload.decode("utf-8"))
         logging.info(f"received message = {payload}")
-        if debug:
-            logging.debug(f"{lamp_name} {command_type} lamp")
+        logging.debug(f"{lamp_name} {command_type} lamp")
 
         lamp = find_or_create_lamp(lamp_list, lamp_id, client)
 
@@ -149,7 +152,7 @@ class joofo_lamp:
             client.message_callback_add(topic_string, callback)
 
     def on_off(self, setting, send):
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",ON_OFF_TOPIC)
+        topic_string = f"{BASE_TOPIC}{self.lamp_id}/get{ON_OFF_TOPIC}"
         if setting == "true":
             on = True
         elif setting == "false":
@@ -171,7 +174,7 @@ class joofo_lamp:
                 send_rf(self.lamp_id + ON_OFF_OFFSET)
 
     def brup(self, received, publish):
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
+        topic_string = f"{BASE_TOPIC}{self.lamp_id}/get{BRIGHTNESS_TOPIC}"
         self.reset = False
         self.on_off("true", False)
         if self.brightness < HK_BR_MAX:
@@ -181,8 +184,7 @@ class joofo_lamp:
                 self.brightness += REMOTE_BRUP_INCREMENT
         if self.brightness > HK_BR_MAX:
             self.brightness = HK_BR_MAX
-        if debug:
-            logging.debug(f"brup {self.brightness}")
+        logging.debug(f"brup {self.brightness}")
         status=math.ceil(self.brightness)
         logging.debug(f"Brightness status: {status}")
         if publish:
@@ -192,7 +194,7 @@ class joofo_lamp:
             send_rf(self.lamp_id + BRIGHTNESS_UP_OFFSET)
 
     def brdown(self, received, publish):
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(self.lamp_id),"get",BRIGHTNESS_TOPIC)
+        topic_string = f"{BASE_TOPIC}{self.lamp_id}/get{BRIGHTNESS_TOPIC}"
         self.reset = False
         if self.brightness > 1:
             if not received:
@@ -201,8 +203,7 @@ class joofo_lamp:
                 self.brightness -= REMOTE_BRDOWN_INCREMENT
         if self.brightness <= 0:
             self.brightness = 1
-        if debug:
-            logging.debug(f"brdown {self.brightness}")
+        logging.debug(f"brdown {self.brightness}")
         status=math.ceil(self.brightness)
         logging.debug(f"Brightness status: {status}")
         if publish:
@@ -221,8 +222,7 @@ class joofo_lamp:
             self.color_temp = 0
 
     def set_brightness_level(self, level):
-        if debug:
-            logging.debug(f"Setting brightness, requested: {level}")
+        logging.debug(f"Setting brightness, requested: {level}")
         # Lamp has BR_LEVELS brightness levels (plus off)
         # but HomeKit has 100 brightness levels
         # We store HomeKit brightness internally & convert in tx/rx with lamp
@@ -236,8 +236,7 @@ class joofo_lamp:
         if level == math.ceil(self.brightness):
             return
 
-        if debug:
-            logging.debug(f"Rounded: {level}")
+        logging.debug(f"Rounded: {level}")
 
         # Take the brightness to the required level
         if self.brightness < level:
@@ -248,8 +247,7 @@ class joofo_lamp:
                     self.brup(False, True)
                 else:
                     self.brup(False, False)
-                if debug:
-                    logging.debug(f"Level: {level}")
+                logging.debug(f"Level: {level}")
         elif self.brightness > level:
             while self.brightness > level:
                 if self.brightness - BR_INCREMENT <= level:
@@ -257,8 +255,7 @@ class joofo_lamp:
                     self.brdown(False, True)
                 else:
                     self.brdown(False, False)
-                if debug:
-                    logging.debug(f"Level: {level}")
+                logging.debug(f"Level: {level}")
 
         # Do a few extras at the boundary to account for inconsistencies in the
         # lamp receiver
@@ -399,7 +396,5 @@ else:
             timestamp = rxdevice.rx_code_timestamp
             code = rxdevice.rx_code
             handle_rx(code, timestamp, gap)
-        # Basically we check for new RF messages this often.
-        # This was determined experimentally - checking more often than this
-        # didn't result in changes to message timestamps
-        sleep(0.0001)
+        # Poll for new RF messages
+        sleep(RF_POLL_INTERVAL)
