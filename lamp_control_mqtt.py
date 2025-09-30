@@ -181,22 +181,19 @@ def set_cct_st_table(client, userdata, message):
     lamp.cct(True)
 
 class joofo_lamp:
-    # This is the numeric value used as the base for commands
-    lamp_id = 0
-    # on_off state
-    on = False
-    # Range from 0-HK_BR_MAX; 0 is off
-    brightness = 0
-    # reset to on at BR_INCREMENT brightness & no other changes made
-    reset = False
-    # Can't determine this, but let's just put it in
-    color_temp = 0
-    # mqtt client
-    client = None
-
     def __init__(self, lamp_id, client):
+        # This is the numeric value used as the base for commands
         self.lamp_id = lamp_id
+        # mqtt client
         self.client = client
+        # on_off state
+        self.on = False
+        # Range from 0-HK_BR_MAX; 0 is off
+        self.brightness = 0
+        # reset to on at BR_INCREMENT brightness & no other changes made
+        self.reset = False
+        # Can't determine this, but let's just put it in
+        self.color_temp = 0
         topic_string = "{}{}{}".format(BASE_TOPIC,"set",RESET_TOPIC)
         print("RESET TOPIC SUB: " + topic_string)
         client.message_callback_add(topic_string, reset_lamp)
