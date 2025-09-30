@@ -84,101 +84,33 @@ def reset_lamp(client, userdata, message):
     lamp = find_or_create_lamp(lamp_list, int(payload), client)
     lamp.reset_lamp()
 
-def on_off_lr(client, userdata, message):
-    if debug:
-        print("LR on off lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.on_off(payload, True)
+def create_lamp_callback(lamp_id, lamp_name, command_type):
+    """Factory function to create MQTT callbacks for lamp commands.
 
-def set_br_lr(client, userdata, message):
-    if debug:
-        print("LR set br lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.set_brightness_level(int(payload))
+    Args:
+        lamp_id: The numeric ID of the lamp
+        lamp_name: Human-readable name for logging (e.g., "LR", "ST desk")
+        command_type: Type of command - 'on_off', 'brightness', or 'cct'
 
-def set_cct_lr(client, userdata, message):
-    if debug:
-        print("LR cct lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, LIVING_ROOM_LAMP, client)
-    lamp.cct(True)
+    Returns:
+        A callback function for MQTT message handling
+    """
+    def callback(client, userdata, message):
+        payload = str(message.payload.decode("utf-8"))
+        logging.info(f"received message = {payload}")
+        if debug:
+            print(f"{lamp_name} {command_type} lamp")
 
-def on_off_st(client, userdata, message):
-    if debug:
-        print("ST on off lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    lamp.on_off(payload, True)
+        lamp = find_or_create_lamp(lamp_list, lamp_id, client)
 
-def set_br_st(client, userdata, message):
-    if debug:
-        print("ST set br lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    lamp.set_brightness_level(int(payload))
+        if command_type == 'on_off':
+            lamp.on_off(payload, True)
+        elif command_type == 'brightness':
+            lamp.set_brightness_level(int(payload))
+        elif command_type == 'cct':
+            lamp.cct(True)
 
-def set_cct_st(client, userdata, message):
-    if debug:
-        print("ST cct lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_LAMPS, client)
-    lamp.cct(True)
-
-def on_off_st_desk(client, userdata, message):
-    if debug:
-        print("ST on off desk lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    lamp.on_off(payload, True)
-
-def set_br_st_desk(client, userdata, message):
-    if debug:
-        print("ST set br desk lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    lamp.set_brightness_level(int(payload))
-
-def set_cct_st_desk(client, userdata, message):
-    if debug:
-        print("ST cct desk lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, client)
-    lamp.cct(True)
-
-def on_off_st_table(client, userdata, message):
-    if debug:
-        print("ST on off table lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
-    lamp.on_off(payload, True)
-
-def set_br_st_table(client, userdata, message):
-    if debug:
-        print("ST set br table lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
-    lamp.set_brightness_level(int(payload))
-
-def set_cct_st_table(client, userdata, message):
-    if debug:
-        print("ST cct table lamp")
-    payload=str(message.payload.decode("utf-8"))
-    logging.info("received message =" + payload)
-    lamp = find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, client)
-    lamp.cct(True)
+    return callback
 
 class joofo_lamp:
     def __init__(self, lamp_id, client):
@@ -194,39 +126,27 @@ class joofo_lamp:
         self.reset = False
         # Can't determine this, but let's just put it in
         self.color_temp = 0
-        topic_string = "{}{}{}".format(BASE_TOPIC,"set",RESET_TOPIC)
-        print("RESET TOPIC SUB: " + topic_string)
+
+        # Get lamp name for logging
+        lamp_name = LAMPS2NAMES.get(lamp_id, f"UNKNOWN_{lamp_id}")
+
+        # Subscribe to reset topic (shared by all lamps)
+        topic_string = f"{BASE_TOPIC}set{RESET_TOPIC}"
+        print(f"RESET TOPIC SUB: {topic_string}")
         client.message_callback_add(topic_string, reset_lamp)
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",ON_OFF_TOPIC)
-        print("ON OFF TOPIC SUB: " + topic_string)
-        if lamp_id == LIVING_ROOM_LAMP:
-            client.message_callback_add(topic_string, on_off_lr)
-        elif lamp_id == STUDY_DESK_LAMP:
-            client.message_callback_add(topic_string, on_off_st_desk)
-        elif lamp_id == STUDY_TABLE_LAMP:
-            client.message_callback_add(topic_string, on_off_st_table)
-        elif lamp_id == STUDY_LAMPS:
-            client.message_callback_add(topic_string, on_off_st)
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",BRIGHTNESS_TOPIC)
-        print("SET BRIGHTNESS TOPIC SUB: " + topic_string)
-        if lamp_id == LIVING_ROOM_LAMP:
-            client.message_callback_add(topic_string, set_br_lr)
-        elif lamp_id == STUDY_DESK_LAMP:
-            client.message_callback_add(topic_string, set_br_st_desk)
-        elif lamp_id == STUDY_TABLE_LAMP:
-            client.message_callback_add(topic_string, set_br_st_table)
-        elif lamp_id == STUDY_LAMPS:
-            client.message_callback_add(topic_string, set_br_st)
-        topic_string = "{}{}/{}{}".format(BASE_TOPIC,str(lamp_id),"set",CCT_TOPIC)
-        print("SET CCT TOPIC SUB: " + topic_string)
-        if lamp_id == LIVING_ROOM_LAMP:
-            client.message_callback_add(topic_string, set_cct_lr)
-        elif lamp_id == STUDY_DESK_LAMP:
-            client.message_callback_add(topic_string, set_cct_st_desk)
-        elif lamp_id == STUDY_TABLE_LAMP:
-            client.message_callback_add(topic_string, set_cct_st_table)
-        elif lamp_id == STUDY_LAMPS:
-            client.message_callback_add(topic_string, set_cct_st)
+
+        # Subscribe to lamp-specific topics using factory function
+        commands = [
+            ('on_off', ON_OFF_TOPIC),
+            ('brightness', BRIGHTNESS_TOPIC),
+            ('cct', CCT_TOPIC)
+        ]
+
+        for command_type, topic_suffix in commands:
+            topic_string = f"{BASE_TOPIC}{lamp_id}/set{topic_suffix}"
+            print(f"{topic_suffix.upper()} TOPIC SUB: {topic_string}")
+            callback = create_lamp_callback(lamp_id, lamp_name, command_type)
+            client.message_callback_add(topic_string, callback)
 
 
     # If it's on, turn it off.  Otherwise, do nothing.
