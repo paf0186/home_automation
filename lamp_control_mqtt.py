@@ -257,18 +257,16 @@ class joofo_lamp:
                     self.brdown(False, False)
                 logging.debug(f"Level: {level}")
 
-        # Do a few extras at the boundary to account for inconsistencies in the
-        # lamp receiver
+        # Send extra commands at boundaries to ensure we reach the target
+        # despite potential RF signal loss
         if level == 100:
-            self.brup(False, False)
-            self.brup(False, False)
-            self.brup(False, False)
-            self.brup(False, False)
-        if level <= BR_INCREMENT:
-            self.brdown(False, False)
-            self.brdown(False, False)
-            self.brdown(False, False)
-            self.brdown(False, False)
+            logging.debug("At max brightness, sending 5 extra BRUP commands")
+            for _ in range(5):
+                self.brup(False, False)
+        if level <= 3:
+            logging.debug("At min brightness, sending 5 extra BRDOWN commands")
+            for _ in range(5):
+                self.brdown(False, False)
 
     def reset_lamp(self):
         # After this, lamp is known "on", brightness indeterminate

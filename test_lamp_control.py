@@ -194,9 +194,30 @@ class TestJoofoLamp:
             with patch.object(lamp, 'on_off'):
                 with patch.object(lamp, 'brup'):
                     lamp.reset_lamp()
-                    
+
                     assert lamp.reset == True
                     assert lamp.color_temp == 0
+
+    def test_set_brightness_100_sends_extra_commands(self, lamp):
+        """Test setting brightness to 100 sends 5 extra BRUP commands."""
+        lamp.brightness = 95
+
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            lamp.set_brightness_level(100)
+
+            # Should send commands to get to 100, plus 5 extra
+            # At least 5 extra calls should happen
+            assert mock_send.call_count >= 5
+
+    def test_set_brightness_low_sends_extra_commands(self, lamp):
+        """Test setting brightness to 3 or below sends 5 extra BRDOWN commands."""
+        lamp.brightness = 10
+
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            lamp.set_brightness_level(3)
+
+            # Should send commands to get to 3, plus 5 extra
+            assert mock_send.call_count >= 5
 
 
 class TestDecodeRx:
