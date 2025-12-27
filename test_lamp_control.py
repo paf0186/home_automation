@@ -1010,3 +1010,253 @@ class TestMainFunction:
                         mock_rf_device.assert_called_once_with(23)
                         mock_rxdevice.enable_rx.assert_called_once()
 
+
+class TestIntegrationSequences:
+    """Integration tests for realistic multi-step scenarios."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock MQTT client."""
+        client = Mock()
+        client.message_callback_add = Mock()
+        client.publish = Mock()
+        return client
+
+    @pytest.fixture
+    def lamp(self, mock_client):
+        """Create a lamp instance for testing."""
+        return lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
+
+    def test_reset_then_set_brightness_sequence(self, lamp, mock_client):
+        """Test complete reset → set brightness → verify state workflow."""
+        with patch('lamp_control_mqtt.send_rf'):
+            # Start: lamp in unknown state
+            lamp.on = True
+            lamp.brightness = 50
+
+            # Step 1: Reset lamp
+            lamp.reset_lamp()
+            assert lamp.reset == True
+            assert lamp.brightness > 0
+
+            # Step 2: Set brightness to 75
+            lamp.set_brightness_level(75)
+            assert lamp.reset == False  # Should clear reset flag
+            assert lamp.brightness >= 75
+            assert lamp.brightness <= 76
+
+            # Step 3: Verify lamp is on
+            assert lamp.on == True
+
+        # Verify MQTT publishes happened
+        assert mock_client.publish.call_count > 0
+
+    def test_rf_receive_mqtt_publish_state_sync(self, lamp, mock_client):
+        """Test RF command reception → MQTT publish → state sync."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+        mock_client.reset_mock()
+
+        with patch('lamp_control_mqtt.send_rf'):
+            # Simulate receiving brightness up command from RF remote
+            code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
+            initial_brightness = lamp.brightness
+
+            # Handle the received RF command
+            lcm.handle_rx(code, 12345, lcm.MIN_GAP + 1)
+
+            # Verify state updated
+            assert lamp.brightness > initial_brightness
+
+            # Verify MQTT publish happened
+            assert mock_client.publish.called
+
+        lcm.lamp_list.clear()
+
+    def test_rapid_brightness_changes(self, lamp):
+        """Test rapid brightness adjustments (simulate real usage)."""
+        with patch('lamp_control_mqtt.send_rf'):
+            # Start at mid-level
+            lamp.brightness = 50
+            lamp.on = True
+
+            # Rapid adjustments up and down
+            lamp.brup(False, False)
+            brightness1 = lamp.brightness
+
+            lamp.brup(False, False)
+            brightness2 = lamp.brightness
+
+            lamp.brdown(False, False)
+            brightness3 = lamp.brightness
+
+            lamp.brdown(False, False)
+            brightness4 = lamp.brightness
+
+            # Verify monotonic increases/decreases
+            assert brightness2 > brightness1
+            assert brightness3 < brightness2
+            assert brightness4 < brightness3
+
+            # Verify lamp stayed on
+            assert lamp.on == True
+
+    def test_complete_mqtt_to_rf_workflow(self, lamp, mock_client):
+        """Test complete MQTT command → lamp state → RF transmission workflow."""
+        lcm.lamp_list.clear()
+
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            # Simulate MQTT brightness command
+            mock_message = Mock()
+            mock_message.payload.decode.return_value = "80"
+
+            callback = lcm.create_lamp_callback(lcm.LIVING_ROOM_LAMP, "Living Room", "brightness")
+            callback(mock_client, None, mock_message)
+
+            # Verify lamp was created and brightness set
+            assert len(lcm.lamp_list) == 1
+            created_lamp = lcm.lamp_list[0]
+            assert created_lamp.brightness >= 80
+            assert created_lamp.brightness <= 81
+
+            # Verify RF commands were sent
+            assert mock_send.call_count > 0
+
+        lcm.lamp_list.clear()
+
+    def test_multiple_lamps_independent_control(self, mock_client):
+        """Test controlling multiple lamps independently."""
+        lcm.lamp_list.clear()
+
+        with patch('lamp_control_mqtt.send_rf'):
+            # Create two lamps
+            lamp1 = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
+            lamp2 = lcm.joofo_lamp(lcm.STUDY_DESK_LAMP, mock_client)
+            lcm.lamp_list.extend([lamp1, lamp2])
+
+            # Set different brightness levels
+            lamp1.set_brightness_level(30)
+            lamp2.set_brightness_level(70)
+
+            # Verify independent state (allow tolerance for BR_INCREMENT rounding)
+            assert abs(lamp1.brightness - 30) <= 3
+            assert abs(lamp2.brightness - 70) <= 3
+
+            # Turn off lamp1, leave lamp2 on
+            lamp1.on_off("false", True)
+            assert lamp1.on == False
+            assert lamp2.on == True
+
+        lcm.lamp_list.clear()
+
+    def test_rf_remote_sequence_simulation(self, lamp, mock_client):
+        """Simulate realistic RF remote button press sequence."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+        lamp.on = False
+        lamp.brightness = 0
+
+        with patch('lamp_control_mqtt.send_rf'):
+            # User turns on lamp via remote (on/off button)
+            code1 = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
+            lcm.handle_rx(code1, 1000000, lcm.MIN_GAP + 1)
+            assert lamp.on == True
+
+            # User increases brightness 3 times
+            code2 = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
+            for i in range(3):
+                timestamp = 1000000 + (i + 1) * 300000
+                lcm.handle_rx(code2, timestamp, lcm.MIN_GAP + 1)
+
+            # Lamp should be brighter
+            assert lamp.brightness > 0
+
+            # User changes color temperature
+            code3 = lcm.LIVING_ROOM_LAMP + lcm.CCT_OFFSET
+            lcm.handle_rx(code3, 2500000, lcm.MIN_GAP + 1)
+            assert lamp.color_temp > 0
+
+            # Verify MQTT publishes happened for state sync
+            assert mock_client.publish.call_count > 0
+
+        lcm.lamp_list.clear()
+
+    def test_duplicate_command_filtering_integration(self, lamp):
+        """Test duplicate RF command filtering in realistic scenario."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+        lamp.on = False
+
+        with patch('lamp_control_mqtt.send_rf'):
+            code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
+            timestamp_base = 1000000
+
+            # First press - should toggle
+            lcm.handle_rx(code, timestamp_base, lcm.MIN_GAP + 1)
+            assert lamp.on == True
+
+            # Duplicate within MIN_GAP - should be ignored
+            lcm.handle_rx(code, timestamp_base + 50000, 50000)  # 50ms gap
+            assert lamp.on == True  # Still on, not toggled back
+
+            # After MIN_GAP - should toggle again
+            lcm.handle_rx(code, timestamp_base + 300000, 300000)  # 300ms gap
+            assert lamp.on == False
+
+        lcm.lamp_list.clear()
+
+    def test_boundary_brightness_with_extra_commands(self, lamp):
+        """Test brightness boundaries send extra commands for reliability."""
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            # Test maximum brightness
+            lamp.brightness = 95
+            lamp.set_brightness_level(100)
+
+            assert lamp.brightness == 100
+            # Should send extra commands at boundary
+            assert mock_send.call_count >= 5
+
+            mock_send.reset_mock()
+
+            # Test minimum brightness
+            lamp.brightness = 10
+            lamp.set_brightness_level(1)
+
+            assert lamp.brightness >= 1
+            # Should send extra commands at boundary
+            assert mock_send.call_count >= 5
+
+    def test_homekit_to_rf_full_cycle(self, mock_client):
+        """Test complete HomeKit → MQTT → lamp state → RF cycle."""
+        lcm.lamp_list.clear()
+
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            # Simulate HomeKit turning on lamp via MQTT
+            on_off_callback = lcm.create_lamp_callback(
+                lcm.LIVING_ROOM_LAMP, "Living Room", "on_off"
+            )
+            mock_message = Mock()
+            mock_message.payload.decode.return_value = "true"
+            on_off_callback(mock_client, None, mock_message)
+
+            # Verify lamp created and turned on
+            assert len(lcm.lamp_list) == 1
+            lamp = lcm.lamp_list[0]
+            assert lamp.on == True
+            assert mock_send.called
+
+            mock_send.reset_mock()
+
+            # Simulate HomeKit setting brightness to 50 via MQTT
+            brightness_callback = lcm.create_lamp_callback(
+                lcm.LIVING_ROOM_LAMP, "Living Room", "brightness"
+            )
+            mock_message.payload.decode.return_value = "50"
+            brightness_callback(mock_client, None, mock_message)
+
+            # Verify brightness set
+            assert abs(lamp.brightness - 50) <= 3  # Allow some tolerance
+            assert mock_send.called
+
+        lcm.lamp_list.clear()
+

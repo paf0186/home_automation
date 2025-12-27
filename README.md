@@ -124,19 +124,20 @@ pytest test_lamp_control.py -v
 pytest test_lamp_control.py --cov=lamp_control_mqtt --cov-report=term-missing
 ```
 
-**Test Coverage: 96%** with **79 passing tests**
+**Test Coverage: 96%** with **88 passing tests**
 
 The test suite includes:
-- Unit tests for all lamp control functions
-- RF transmission and reception tests
-- MQTT integration tests
-- Edge case and error handling tests
-- Main entry point tests (single command & daemon mode)
+- Unit tests for all lamp control functions (42 tests)
+- RF transmission and reception tests (12 tests)
+- MQTT integration tests (15 tests)
+- Edge case and error handling tests (10 tests)
+- Main entry point tests (2 tests)
+- Integration tests for realistic workflows (9 tests)
 
 ### Code Structure
 
 - `lamp_control_mqtt.py` - Main application (275 statements)
-- `test_lamp_control.py` - Comprehensive test suite (79 tests)
+- `test_lamp_control.py` - Comprehensive test suite (88 tests, 96% coverage)
 - `.github/workflows/test.yml` - CI/CD pipeline (Python 3.8-3.11)
 - `config.json` - Homebridge MQTT configuration
 - `mqtt_lamp_control_rf.service` - Systemd service file
