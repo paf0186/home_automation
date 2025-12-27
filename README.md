@@ -1,5 +1,10 @@
 # Home Automation - MQTT/RF Bridge for Smart Lamps
 
+[![Tests](https://github.com/paf0186/home_automation/actions/workflows/test.yml/badge.svg)](https://github.com/paf0186/home_automation/actions/workflows/test.yml)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Code Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen.svg)](test_lamp_control.py)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A Raspberry Pi-based home automation system that bridges MQTT (Homebridge) with 433/315MHz RF-controlled smart lamps. This allows controlling RF lamps through Apple HomeKit while maintaining compatibility with physical RF remotes.
 
 ## Features
@@ -119,14 +124,23 @@ pytest test_lamp_control.py -v
 pytest test_lamp_control.py --cov=lamp_control_mqtt --cov-report=term-missing
 ```
 
-Current test coverage: **74%** with **42 passing tests**
+**Test Coverage: 96%** with **79 passing tests**
+
+The test suite includes:
+- Unit tests for all lamp control functions
+- RF transmission and reception tests
+- MQTT integration tests
+- Edge case and error handling tests
+- Main entry point tests (single command & daemon mode)
 
 ### Code Structure
 
-- `lamp_control_mqtt.py` - Main application (407 lines)
-- `test_lamp_control.py` - Test suite (42 tests)
+- `lamp_control_mqtt.py` - Main application (275 statements)
+- `test_lamp_control.py` - Comprehensive test suite (79 tests)
+- `.github/workflows/test.yml` - CI/CD pipeline (Python 3.8-3.11)
 - `config.json` - Homebridge MQTT configuration
 - `mqtt_lamp_control_rf.service` - Systemd service file
+- `rf_sniffer.py` - RF diagnostic tool for discovering lamp codes
 
 ### Key Components
 

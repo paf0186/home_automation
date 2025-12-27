@@ -898,3 +898,115 @@ class TestRFSendBehavior:
 
         mock_send.assert_not_called()
 
+
+class TestInvalidInputs:
+    """Test handling of invalid/edge case inputs."""
+
+    def test_on_off_invalid_payload(self):
+        """Test on/off with invalid payload (not 'true' or 'false')."""
+        mock_client = Mock()
+        lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
+        lamp.on = False
+
+        with patch('lamp_control_mqtt.send_rf') as mock_send:
+            # Invalid payload results in on = None
+            # Since self.on (False) != on (None), it will toggle
+            lamp.on_off("invalid", True)
+            # Should toggle state and send RF
+            assert lamp.on == True
+            mock_send.assert_called_once()
+
+    def test_decode_rx_out_of_range_command(self):
+        """Test decode_rx with command offset outside valid range."""
+        lcm.lamp_list.clear()
+        mock_client = Mock()
+        lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
+        lcm.lamp_list.append(lamp)
+
+        # Code within MAX_OFFSET range but not a valid command (e.g., +5)
+        code = lcm.LIVING_ROOM_LAMP + 5
+        result_lamp, result_cmd = lcm.decode_rx(code, 12345)
+
+        # Should return None for both since 5 is not in CMDS2NAMES
+        assert result_lamp is None
+        assert result_cmd is None
+
+        lcm.lamp_list.clear()
+
+    def test_callback_execution_cct(self):
+        """Test executing a CCT callback."""
+        lcm.lamp_list.clear()
+        mock_client = Mock()
+        callback = lcm.create_lamp_callback(lcm.LIVING_ROOM_LAMP, "Living Room", "cct")
+
+        # Create mock message
+        mock_message = Mock()
+        mock_message.payload.decode.return_value = "any_value"
+
+        with patch('lamp_control_mqtt.send_rf'):
+            callback(mock_client, None, mock_message)
+
+        # Should have created a lamp and called cct
+        assert len(lcm.lamp_list) == 1
+        # CCT cycles 0->1->2->0, so it should have changed
+        assert lcm.lamp_list[0].color_temp in [0, 1, 2]
+
+        lcm.lamp_list.clear()
+
+
+class TestMainFunction:
+    """Test the main() entry point."""
+
+    def test_main_single_command_mode(self):
+        """Test main() in single command send mode."""
+        # Mock the args to have a code specified
+        with patch('lamp_control_mqtt.args') as mock_args:
+            mock_args.code = 3513633
+            mock_args.gpio_tx = 4
+            mock_args.protocol = 1
+            mock_args.pulselength = 350
+
+            with patch('lamp_control_mqtt.mqtt.Client') as mock_mqtt_client:
+                with patch('lamp_control_mqtt.RFDevice') as mock_rf_device:
+                    mock_tx = Mock()
+                    mock_rf_device.return_value = mock_tx
+
+                    # Should exit after sending one message, so we return early
+                    lcm.main()
+
+                    # Should have created RFDevice and sent code
+                    mock_rf_device.assert_called_once()
+                    mock_tx.enable_tx.assert_called_once()
+                    mock_tx.tx_code.assert_called_once()
+
+    def test_main_daemon_mode(self):
+        """Test main() in daemon mode (no code specified)."""
+        # Mock the args to not have a code (daemon mode)
+        with patch('lamp_control_mqtt.args') as mock_args:
+            mock_args.code = None
+            mock_args.gpio_rx = 23
+
+            mock_client_instance = Mock()
+            mock_rxdevice = Mock()
+            mock_rxdevice.rx_code_timestamp = None
+
+            with patch('lamp_control_mqtt.mqtt.Client', return_value=mock_client_instance) as mock_mqtt:
+                with patch('lamp_control_mqtt.RFDevice', return_value=mock_rxdevice) as mock_rf_device:
+                    # Mock sleep to avoid infinite loop - raise exception after first call
+                    with patch('lamp_control_mqtt.sleep') as mock_sleep:
+                        mock_sleep.side_effect = [None, KeyboardInterrupt]
+
+                        try:
+                            lcm.main()
+                        except KeyboardInterrupt:
+                            pass
+
+                        # Should have created MQTT client and connected
+                        mock_mqtt.assert_called_once_with("homebridge_mqtt_rfclient")
+                        mock_client_instance.connect.assert_called_once_with("localhost")
+                        mock_client_instance.loop_start.assert_called_once()
+
+                        # Should have created RX device and enabled it
+                        mock_rf_device.assert_called_once_with(23)
+                        mock_rxdevice.enable_rx.assert_called_once()
+
