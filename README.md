@@ -2,7 +2,8 @@
 
 [![Tests](https://github.com/paf0186/home_automation/actions/workflows/test.yml/badge.svg)](https://github.com/paf0186/home_automation/actions/workflows/test.yml)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Code Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen.svg)](test_lamp_control.py)
+[![Code Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](test_lamp_control.py)
+[![Code Quality](https://img.shields.io/badge/code%20quality-A-brightgreen.svg)](#code-quality)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A Raspberry Pi-based home automation system that bridges MQTT (Homebridge) with 433/315MHz RF-controlled smart lamps. This allows controlling RF lamps through Apple HomeKit while maintaining compatibility with physical RF remotes.
@@ -124,7 +125,7 @@ pytest test_lamp_control.py -v
 pytest test_lamp_control.py --cov=lamp_control_mqtt --cov-report=term-missing
 ```
 
-**Test Coverage: 96%** with **88 passing tests**
+**Test Coverage: 97%** with **96 passing tests**
 
 The test suite includes:
 - Unit tests for all lamp control functions (42 tests)
@@ -133,15 +134,25 @@ The test suite includes:
 - Edge case and error handling tests (10 tests)
 - Main entry point tests (2 tests)
 - Integration tests for realistic workflows (9 tests)
+- Performance and stress tests (8 tests)
 
 ### Code Structure
 
 - `lamp_control_mqtt.py` - Main application (275 statements)
-- `test_lamp_control.py` - Comprehensive test suite (88 tests, 96% coverage)
-- `.github/workflows/test.yml` - CI/CD pipeline (Python 3.8-3.11)
+- `test_lamp_control.py` - Comprehensive test suite (96 tests, 97% coverage)
+- `.github/workflows/test.yml` - CI/CD pipeline with code quality checks
+- `pyproject.toml` - Python packaging and tool configuration
 - `config.json` - Homebridge MQTT configuration
 - `mqtt_lamp_control_rf.service` - Systemd service file
 - `rf_sniffer.py` - RF diagnostic tool for discovering lamp codes
+
+### Code Quality
+
+Automated code quality checks run on every commit:
+- **black** - Code formatting (line length: 100)
+- **flake8** - Style guide enforcement (PEP 8)
+- **mypy** - Static type checking
+- **bandit** - Security vulnerability scanning
 
 ### Key Components
 

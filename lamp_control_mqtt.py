@@ -3,29 +3,31 @@
 
 import argparse
 import logging
-import time
 import paho.mqtt.client as mqtt
 import math
-from math import ceil
 from time import sleep
 
 from RPi import GPIO
 from rpi_rf import RFDevice
 
-logging.basicConfig(level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S',
-                    format='%(asctime)-15s - [%(levelname)s] %(module)s: %(message)s',)
+logging.basicConfig(
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(asctime)-15s - [%(levelname)s] %(module)s: %(message)s",
+)
 
-parser = argparse.ArgumentParser(description='Sends a decimal code via a 433/315MHz GPIO device')
-parser.add_argument('-c', dest='code', type=int,
-                    help="Decimal code to send")
-parser.add_argument('-g', dest='gpio_tx', type=int, default=4,
-                    help="GPIO transmit pin (Default: 4)")
-parser.add_argument('-r', dest='gpio_rx', type=int, default=23,
-                    help="GPIO receive pin (Default: 23)")
-parser.add_argument('-p', dest='pulselength', type=int, default=None,
-                    help="Pulselength (Default: 350)")
-parser.add_argument('-t', dest='protocol', type=int, default=None,
-                    help="Protocol (Default: 1)")
+parser = argparse.ArgumentParser(description="Sends a decimal code via a 433/315MHz GPIO device")
+parser.add_argument("-c", dest="code", type=int, help="Decimal code to send")
+parser.add_argument(
+    "-g", dest="gpio_tx", type=int, default=4, help="GPIO transmit pin (Default: 4)"
+)
+parser.add_argument(
+    "-r", dest="gpio_rx", type=int, default=23, help="GPIO receive pin (Default: 23)"
+)
+parser.add_argument(
+    "-p", dest="pulselength", type=int, default=None, help="Pulselength (Default: 350)"
+)
+parser.add_argument("-t", dest="protocol", type=int, default=None, help="Protocol (Default: 1)")
 args = parser.parse_args()
 
 if args.protocol:
@@ -47,7 +49,7 @@ CMDS2NAMES = {
     ON_OFF_OFFSET: "ON_OFF_OFFSET",
     CCT_OFFSET: "CCT_OFFSET",
     BRIGHTNESS_UP_OFFSET: "BRIGHTNESS_UP_OFFSET",
-    BRIGHTNESS_DOWN_OFFSET: "BRIGHTNESS_DOWN_OFFSET"
+    BRIGHTNESS_DOWN_OFFSET: "BRIGHTNESS_DOWN_OFFSET",
 }
 
 # Brightness levels
@@ -77,16 +79,23 @@ LIVING_ROOM_LAMP = 3513633
 STUDY_LAMPS = 13470497
 STUDY_DESK_LAMP = 9513633
 STUDY_TABLE_LAMP = 4513633
-LAMPS2NAMES={LIVING_ROOM_LAMP : "LIVING_ROOM_LAMP", STUDY_LAMPS : "STUDY_LAMPS", STUDY_DESK_LAMP : "STUDY_DESK_LAMP", STUDY_TABLE_LAMP : "STUDY_TABLE_LAMP"}
+LAMPS2NAMES = {
+    LIVING_ROOM_LAMP: "LIVING_ROOM_LAMP",
+    STUDY_LAMPS: "STUDY_LAMPS",
+    STUDY_DESK_LAMP: "STUDY_DESK_LAMP",
+    STUDY_TABLE_LAMP: "STUDY_TABLE_LAMP",
+}
 
 lamp_list = []
 
+
 def reset_lamp(client, userdata, message):
-    payload=str(message.payload.decode("utf-8"))
+    payload = str(message.payload.decode("utf-8"))
     logging.info(f"received message = {payload}")
     logging.debug(f"on reset lamp {payload}")
     lamp = find_or_create_lamp(lamp_list, int(payload), client)
     lamp.reset_lamp()
+
 
 def create_lamp_callback(lamp_id, lamp_name, command_type):
     """Factory function to create MQTT callbacks for lamp commands.
@@ -99,6 +108,7 @@ def create_lamp_callback(lamp_id, lamp_name, command_type):
     Returns:
         A callback function for MQTT message handling
     """
+
     def callback(client, userdata, message):
         payload = str(message.payload.decode("utf-8"))
         logging.info(f"received message = {payload}")
@@ -106,14 +116,15 @@ def create_lamp_callback(lamp_id, lamp_name, command_type):
 
         lamp = find_or_create_lamp(lamp_list, lamp_id, client)
 
-        if command_type == 'on_off':
+        if command_type == "on_off":
             lamp.on_off(payload, True)
-        elif command_type == 'brightness':
+        elif command_type == "brightness":
             lamp.set_brightness_level(int(payload))
-        elif command_type == 'cct':
+        elif command_type == "cct":
             lamp.cct(True)
 
     return callback
+
 
 class joofo_lamp:
     def __init__(self, lamp_id, client):
@@ -139,11 +150,7 @@ class joofo_lamp:
         client.message_callback_add(topic_string, reset_lamp)
 
         # Subscribe to lamp-specific topics using factory function
-        commands = [
-            ('on_off', ON_OFF_TOPIC),
-            ('brightness', BRIGHTNESS_TOPIC),
-            ('cct', CCT_TOPIC)
-        ]
+        commands = [("on_off", ON_OFF_TOPIC), ("brightness", BRIGHTNESS_TOPIC), ("cct", CCT_TOPIC)]
 
         for command_type, topic_suffix in commands:
             topic_string = f"{BASE_TOPIC}{lamp_id}/set{topic_suffix}"
@@ -185,7 +192,7 @@ class joofo_lamp:
         if self.brightness > HK_BR_MAX:
             self.brightness = HK_BR_MAX
         logging.debug(f"brup {self.brightness}")
-        status=math.ceil(self.brightness)
+        status = math.ceil(self.brightness)
         logging.debug(f"Brightness status: {status}")
         if publish:
             logging.debug(f"PUBLISHING (brup) {topic_string}")
@@ -204,7 +211,7 @@ class joofo_lamp:
         if self.brightness <= 0:
             self.brightness = 1
         logging.debug(f"brdown {self.brightness}")
-        status=math.ceil(self.brightness)
+        status = math.ceil(self.brightness)
         logging.debug(f"Brightness status: {status}")
         if publish:
             logging.debug(f"PUBLISHING (brdown) {topic_string}")
@@ -285,6 +292,7 @@ class joofo_lamp:
         # Can't actually change the temp, but eh
         self.color_temperature = 0
 
+
 def find_or_create_lamp(lamp_list, lamp_id, client):
     for item in lamp_list:
         if item.lamp_id == lamp_id:
@@ -295,6 +303,7 @@ def find_or_create_lamp(lamp_list, lamp_id, client):
 
     logging.info(f"Created lamp: {LAMPS2NAMES[lamp_id]} ({lamp_id})")
     return new_lamp
+
 
 def handle_rx(code, timestamp, gap):
     lamp, command = decode_rx(code, timestamp)
@@ -316,16 +325,17 @@ def handle_rx(code, timestamp, gap):
     elif command == BRIGHTNESS_DOWN_OFFSET:
         lamp.brdown(True, True)
 
+
 # Decode a message off the wire
 def decode_rx(code, timestamp):
-    target_lamp=None
+    target_lamp = None
     for lamp in lamp_list:
         if abs(int(code) - int(lamp.lamp_id)) <= MAX_OFFSET:
-            target_lamp=lamp
+            target_lamp = lamp
 
     if target_lamp is None:
         logging.warning(f"Lamp not found!  Code: {code}")
-        return (None,None)
+        return (None, None)
     command = int(code) - int(target_lamp.lamp_id)
     if command not in CMDS2NAMES.keys():
         logging.warning(f"Command not found!  Code: {code}")
@@ -333,7 +343,8 @@ def decode_rx(code, timestamp):
     logging.info(f"Code: {code} TS: {timestamp}")
     logging.info(f"Lamp: {LAMPS2NAMES[target_lamp.lamp_id]}")
     logging.info(f"Command: {CMDS2NAMES[command]}")
-    return (target_lamp,command)
+    return (target_lamp, command)
+
 
 def send_rf(message):
     logging.debug(f"Sending: {message}")
@@ -343,6 +354,7 @@ def send_rf(message):
     txdevice.disable_tx()
     GPIO.cleanup(args.gpio_tx)
     sleep(RF_DELAY)
+
 
 def on_disconnect(mqttc, userdata, rc):
     if rc != 0:
@@ -354,6 +366,7 @@ def on_disconnect(mqttc, userdata, rc):
     else:
         logging.info("Clean disconnect.")
 
+
 def on_connect(mqttc, obj, flags, rc):
     logging.info("Connected.")
     topic_string = f"{BASE_TOPIC}#"
@@ -364,6 +377,7 @@ def on_connect(mqttc, obj, flags, rc):
     find_or_create_lamp(lamp_list, STUDY_LAMPS, mqttc)
     find_or_create_lamp(lamp_list, STUDY_DESK_LAMP, mqttc)
     find_or_create_lamp(lamp_list, STUDY_TABLE_LAMP, mqttc)
+
 
 def main():
     """Main entry point for the application."""

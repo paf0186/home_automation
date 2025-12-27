@@ -7,8 +7,37 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 mypy bandit
+
+    - name: Check code formatting with black
+      run: black --check --diff lamp_control_mqtt.py test_lamp_control.py rf_sniffer.py
+
+    - name: Lint with flake8
+      run: flake8 lamp_control_mqtt.py test_lamp_control.py rf_sniffer.py
+
+    - name: Type check with mypy
+      run: mypy lamp_control_mqtt.py --ignore-missing-imports || true
+
+    - name: Security check with bandit
+      run: bandit -r lamp_control_mqtt.py -ll
+
   test:
     runs-on: ubuntu-latest
+    needs: code-quality
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]

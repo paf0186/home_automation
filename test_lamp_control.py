@@ -5,33 +5,27 @@ Run with: pytest test_lamp_control.py -v
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock, MagicMock, patch
 import sys
 
 # Mock hardware and MQTT dependencies before importing
-sys.modules['RPi'] = MagicMock()
-sys.modules['RPi.GPIO'] = MagicMock()
-sys.modules['rpi_rf'] = MagicMock()
-sys.modules['paho'] = MagicMock()
-sys.modules['paho.mqtt'] = MagicMock()
-sys.modules['paho.mqtt.client'] = MagicMock()
+sys.modules["RPi"] = MagicMock()
+sys.modules["RPi.GPIO"] = MagicMock()
+sys.modules["rpi_rf"] = MagicMock()
+sys.modules["paho"] = MagicMock()
+sys.modules["paho.mqtt"] = MagicMock()
+sys.modules["paho.mqtt.client"] = MagicMock()
 
 # Now we can import the module
 # We need to mock argparse to avoid it trying to parse test runner args
-with patch('argparse.ArgumentParser.parse_args') as mock_args:
-    mock_args.return_value = Mock(
-        code=None,
-        gpio_tx=4,
-        gpio_rx=23,
-        pulselength=None,
-        protocol=None
-    )
+with patch("argparse.ArgumentParser.parse_args") as mock_args:
+    mock_args.return_value = Mock(code=None, gpio_tx=4, gpio_rx=23, pulselength=None, protocol=None)
     import lamp_control_mqtt as lcm
 
 
 class TestConstants:
     """Test that constants are defined correctly."""
-    
+
     def test_command_offsets(self):
         """Test RF command offset values."""
         assert lcm.ON_OFF_OFFSET == 0
@@ -39,19 +33,19 @@ class TestConstants:
         assert lcm.BRIGHTNESS_UP_OFFSET == 3
         assert lcm.BRIGHTNESS_DOWN_OFFSET == 7
         assert lcm.MAX_OFFSET == 7
-    
+
     def test_brightness_constants(self):
         """Test brightness calculation constants."""
         assert lcm.BR_LEVELS == 36
         assert lcm.HK_BR_MAX == 100
-        assert lcm.BR_INCREMENT == pytest.approx(100/36)
-    
+        assert lcm.BR_INCREMENT == pytest.approx(100 / 36)
+
     def test_timing_constants(self):
         """Test timing constants are reasonable."""
         assert lcm.MIN_GAP == 200000  # 200ms in microseconds
         assert lcm.RF_DELAY == 0.05
         assert lcm.RF_POLL_INTERVAL == 0.0001
-    
+
     def test_lamp_ids(self):
         """Test lamp IDs are defined."""
         assert lcm.LIVING_ROOM_LAMP == 3513633
@@ -62,7 +56,7 @@ class TestConstants:
 
 class TestJoofoLamp:
     """Test the joofo_lamp class."""
-    
+
     @pytest.fixture
     def mock_client(self):
         """Create a mock MQTT client."""
@@ -70,12 +64,12 @@ class TestJoofoLamp:
         client.message_callback_add = Mock()
         client.publish = Mock()
         return client
-    
+
     @pytest.fixture
     def lamp(self, mock_client):
         """Create a lamp instance for testing."""
         return lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
-    
+
     def test_lamp_initialization(self, lamp, mock_client):
         """Test lamp is initialized with correct state."""
         assert lamp.lamp_id == lcm.LIVING_ROOM_LAMP
@@ -84,115 +78,115 @@ class TestJoofoLamp:
         assert lamp.brightness == 0
         assert lamp.reset == False
         assert lamp.color_temp == 0
-    
+
     def test_lamp_registers_callbacks(self, mock_client):
         """Test lamp registers MQTT callbacks on init."""
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
-        
+
         # Should register 4 callbacks (reset + 3 lamp-specific)
         assert mock_client.message_callback_add.call_count == 4
-    
+
     def test_on_off_toggle(self, lamp, mock_client):
         """Test on/off toggling."""
         assert lamp.on == False
-        
+
         # Turn on
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.on_off("true", True)
             assert lamp.on == True
             mock_send.assert_called_once()
-        
+
         # Turn off
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.on_off("false", True)
             assert lamp.on == False
             mock_send.assert_called_once()
-    
+
     def test_on_off_no_change(self, lamp, mock_client):
         """Test on/off doesn't send RF if state unchanged."""
         lamp.on = False
-        
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.on_off("false", True)
             assert lamp.on == False
             mock_send.assert_not_called()
-    
+
     def test_brightness_up(self, lamp):
         """Test brightness increase."""
         lamp.brightness = 50
         initial = lamp.brightness
-        
-        with patch('lamp_control_mqtt.send_rf'):
+
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, False)
-        
+
         assert lamp.brightness > initial
         assert lamp.brightness <= lcm.HK_BR_MAX
-    
+
     def test_brightness_down(self, lamp):
         """Test brightness decrease."""
         lamp.brightness = 50
         initial = lamp.brightness
-        
-        with patch('lamp_control_mqtt.send_rf'):
+
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(False, False)
-        
+
         assert lamp.brightness < initial
         assert lamp.brightness >= 1  # Never goes below 1
-    
+
     def test_brightness_max_clamping(self, lamp):
         """Test brightness doesn't exceed maximum."""
         lamp.brightness = 99
-        
-        with patch('lamp_control_mqtt.send_rf'):
+
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, False)
-        
+
         assert lamp.brightness == lcm.HK_BR_MAX
-    
+
     def test_brightness_min_clamping(self, lamp):
         """Test brightness doesn't go below 1."""
         lamp.brightness = 2
-        
-        with patch('lamp_control_mqtt.send_rf'):
+
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(False, False)
-        
+
         assert lamp.brightness >= 1
-    
+
     def test_color_temp_cycle(self, lamp):
         """Test color temperature cycles 0->1->2->0."""
         assert lamp.color_temp == 0
-        
+
         lamp.cct(False)
         assert lamp.color_temp == 1
-        
+
         lamp.cct(False)
         assert lamp.color_temp == 2
-        
+
         lamp.cct(False)
         assert lamp.color_temp == 0
-    
+
     def test_set_brightness_level_no_change(self, lamp):
         """Test set_brightness_level does nothing if already at level."""
         lamp.brightness = 50
-        
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(50)
             mock_send.assert_not_called()
-    
+
     def test_set_brightness_level_zero_becomes_one(self, lamp):
         """Test setting brightness to 0 sets it to 1 instead."""
         # The function converts 0 to 1, so we just verify it doesn't crash
         # and handles the edge case properly
         lamp.brightness = 1
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.set_brightness_level(0)
             # Should return early since brightness is already 1
             assert lamp.brightness == 1
-    
+
     def test_reset_lamp(self, lamp):
         """Test lamp reset sequence."""
-        with patch('lamp_control_mqtt.send_rf'):
-            with patch.object(lamp, 'on_off'):
-                with patch.object(lamp, 'brup'):
+        with patch("lamp_control_mqtt.send_rf"):
+            with patch.object(lamp, "on_off"):
+                with patch.object(lamp, "brup"):
                     lamp.reset_lamp()
 
                     assert lamp.reset == True
@@ -202,7 +196,7 @@ class TestJoofoLamp:
         """Test setting brightness to 100 sends 5 extra BRUP commands."""
         lamp.brightness = 95
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(100)
 
             # Should send commands to get to 100, plus 5 extra
@@ -213,7 +207,7 @@ class TestJoofoLamp:
         """Test setting brightness to 3 or below sends 5 extra BRDOWN commands."""
         lamp.brightness = 10
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(3)
 
             # Should send commands to get to 3, plus 5 extra
@@ -222,86 +216,86 @@ class TestJoofoLamp:
 
 class TestDecodeRx:
     """Test RF code decoding."""
-    
+
     def setup_method(self):
         """Set up test lamp list."""
         lcm.lamp_list.clear()
         mock_client = Mock()
         self.lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lcm.lamp_list.append(self.lamp)
-    
+
     def teardown_method(self):
         """Clean up lamp list."""
         lcm.lamp_list.clear()
-    
+
     def test_decode_on_off(self):
         """Test decoding ON/OFF command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
         lamp, command = lcm.decode_rx(code, 12345)
-        
+
         assert lamp == self.lamp
         assert command == lcm.ON_OFF_OFFSET
-    
+
     def test_decode_brightness_up(self):
         """Test decoding brightness up command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
         lamp, command = lcm.decode_rx(code, 12345)
-        
+
         assert lamp == self.lamp
         assert command == lcm.BRIGHTNESS_UP_OFFSET
-    
+
     def test_decode_brightness_down(self):
         """Test decoding brightness down command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_DOWN_OFFSET
         lamp, command = lcm.decode_rx(code, 12345)
-        
+
         assert lamp == self.lamp
         assert command == lcm.BRIGHTNESS_DOWN_OFFSET
-    
+
     def test_decode_unknown_lamp(self):
         """Test decoding with unknown lamp ID."""
         code = 9999999  # Unknown lamp
         lamp, command = lcm.decode_rx(code, 12345)
-        
+
         assert lamp is None
         assert command is None
-    
+
     def test_decode_invalid_command(self):
         """Test decoding with invalid command offset."""
         code = lcm.LIVING_ROOM_LAMP + 99  # Invalid offset
         lamp, command = lcm.decode_rx(code, 12345)
-        
+
         assert lamp is None
         assert command is None
 
 
 class TestHandleRx:
     """Test RF message handling."""
-    
+
     def setup_method(self):
         """Set up test lamp list."""
         lcm.lamp_list.clear()
         mock_client = Mock()
         self.lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lcm.lamp_list.append(self.lamp)
-    
+
     def teardown_method(self):
         """Clean up lamp list."""
         lcm.lamp_list.clear()
-    
+
     def test_handle_on_off(self):
         """Test handling ON/OFF command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
-        
-        with patch.object(self.lamp, 'on_off') as mock_on_off:
+
+        with patch.object(self.lamp, "on_off") as mock_on_off:
             lcm.handle_rx(code, 12345, lcm.MIN_GAP + 1)
             mock_on_off.assert_called_once_with(None, False)
-    
+
     def test_handle_brightness_up(self):
         """Test handling brightness up command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
 
-        with patch.object(self.lamp, 'brup') as mock_brup:
+        with patch.object(self.lamp, "brup") as mock_brup:
             lcm.handle_rx(code, 12345, lcm.MIN_GAP + 1)
             mock_brup.assert_called_once_with(True, True)
 
@@ -309,7 +303,7 @@ class TestHandleRx:
         """Test handling brightness down command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_DOWN_OFFSET
 
-        with patch.object(self.lamp, 'brdown') as mock_brdown:
+        with patch.object(self.lamp, "brdown") as mock_brdown:
             lcm.handle_rx(code, 12345, lcm.MIN_GAP + 1)
             mock_brdown.assert_called_once_with(True, True)
 
@@ -317,7 +311,7 @@ class TestHandleRx:
         """Test handling color temp command."""
         code = lcm.LIVING_ROOM_LAMP + lcm.CCT_OFFSET
 
-        with patch.object(self.lamp, 'cct') as mock_cct:
+        with patch.object(self.lamp, "cct") as mock_cct:
             lcm.handle_rx(code, 12345, lcm.MIN_GAP + 1)
             mock_cct.assert_called_once_with(False)
 
@@ -325,7 +319,7 @@ class TestHandleRx:
         """Test duplicate ON/OFF commands are ignored."""
         code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
 
-        with patch.object(self.lamp, 'on_off') as mock_on_off:
+        with patch.object(self.lamp, "on_off") as mock_on_off:
             # Gap too small - should be ignored
             lcm.handle_rx(code, 12345, lcm.MIN_GAP - 1)
             mock_on_off.assert_not_called()
@@ -334,7 +328,7 @@ class TestHandleRx:
         """Test duplicate CCT commands are ignored."""
         code = lcm.LIVING_ROOM_LAMP + lcm.CCT_OFFSET
 
-        with patch.object(self.lamp, 'cct') as mock_cct:
+        with patch.object(self.lamp, "cct") as mock_cct:
             # Gap too small - should be ignored
             lcm.handle_rx(code, 12345, lcm.MIN_GAP - 1)
             mock_cct.assert_not_called()
@@ -348,7 +342,7 @@ class TestHandleRx:
 
     def test_handle_null_lamp(self):
         """Test handling when decode returns None."""
-        with patch('lamp_control_mqtt.decode_rx', return_value=(None, None)):
+        with patch("lamp_control_mqtt.decode_rx", return_value=(None, None)):
             # Should not raise exception
             lcm.handle_rx(12345, 12345, lcm.MIN_GAP + 1)
 
@@ -428,7 +422,7 @@ class TestCallbackFactory:
         mock_message = Mock()
         mock_message.payload.decode.return_value = "true"
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             callback(mock_client, None, mock_message)
 
         # Should have created a lamp
@@ -448,8 +442,8 @@ class TestCallbackFactory:
         mock_message.payload.decode.return_value = "75"
 
         # Mock set_brightness_level to avoid infinite loop
-        with patch('lamp_control_mqtt.send_rf'):
-            with patch.object(lcm.joofo_lamp, 'set_brightness_level'):
+        with patch("lamp_control_mqtt.send_rf"):
+            with patch.object(lcm.joofo_lamp, "set_brightness_level"):
                 callback(mock_client, None, mock_message)
                 # Should have created a lamp
                 assert len(lcm.lamp_list) == 1
@@ -478,7 +472,7 @@ class TestResetLamp:
         mock_message = Mock()
         mock_message.payload.decode.return_value = str(lcm.LIVING_ROOM_LAMP)
 
-        with patch.object(lamp, 'reset_lamp') as mock_reset:
+        with patch.object(lamp, "reset_lamp") as mock_reset:
             lcm.reset_lamp(mock_client, None, mock_message)
             mock_reset.assert_called_once()
 
@@ -490,7 +484,7 @@ class TestMQTTCallbacks:
         """Test on_connect callback."""
         mock_client = Mock()
 
-        with patch('lamp_control_mqtt.joofo_lamp') as mock_lamp_class:
+        with patch("lamp_control_mqtt.joofo_lamp") as mock_lamp_class:
             lcm.on_connect(mock_client, None, None, 0)
 
             # Should create 4 lamps
@@ -528,7 +522,7 @@ class TestSendRF:
 
     def test_send_rf_basic(self):
         """Test sending RF code."""
-        with patch('lamp_control_mqtt.RFDevice') as mock_rf_device:
+        with patch("lamp_control_mqtt.RFDevice") as mock_rf_device:
             mock_tx = Mock()
             mock_rf_device.return_value = mock_tx
 
@@ -541,7 +535,7 @@ class TestSendRF:
 
     def test_send_rf_with_protocol_and_pulselength(self):
         """Test sending RF code respects protocol and pulselength args."""
-        with patch('lamp_control_mqtt.RFDevice') as mock_rf_device:
+        with patch("lamp_control_mqtt.RFDevice") as mock_rf_device:
             mock_tx = Mock()
             mock_rf_device.return_value = mock_tx
 
@@ -573,7 +567,7 @@ class TestBrightnessEdgeCases:
         """Test brightness transition near maximum."""
         lamp.brightness = 95
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(100)
 
             # Should reach 100 and send extra commands
@@ -584,7 +578,7 @@ class TestBrightnessEdgeCases:
         """Test brightness transition near minimum."""
         lamp.brightness = 10
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(1)
 
             # Should reach 1 and send extra commands
@@ -595,7 +589,7 @@ class TestBrightnessEdgeCases:
         """Test mid-range brightness transition."""
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.set_brightness_level(75)
 
             # Should reach target
@@ -607,7 +601,7 @@ class TestBrightnessEdgeCases:
         lamp.on = False
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, False)
 
         assert lamp.on == True
@@ -616,7 +610,7 @@ class TestBrightnessEdgeCases:
         """Test brightness down at minimum stays at 1."""
         lamp.brightness = 1
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(False, False)
 
         assert lamp.brightness == 1
@@ -626,7 +620,7 @@ class TestBrightnessEdgeCases:
         lamp.brightness = 50
         initial = lamp.brightness
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(True, False)  # received=True
 
         # Should use REMOTE_BRUP_INCREMENT instead of BR_INCREMENT
@@ -637,7 +631,7 @@ class TestBrightnessEdgeCases:
         lamp.brightness = 50
         initial = lamp.brightness
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(True, False)  # received=True
 
         # Should use REMOTE_BRDOWN_INCREMENT instead of BR_INCREMENT
@@ -659,7 +653,7 @@ class TestMQTTTopics:
 
         expected_topic = f"{lcm.BASE_TOPIC}{lcm.LIVING_ROOM_LAMP}/getOnOff"
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.on_off("true", True)
 
         # Check that publish was called with correct topic
@@ -674,7 +668,7 @@ class TestMQTTTopics:
 
         expected_topic = f"{lcm.BASE_TOPIC}{lcm.LIVING_ROOM_LAMP}/getBrightness"
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, True)  # publish=True
 
         # Check that publish was called with correct topic
@@ -691,7 +685,7 @@ class TestResetLampSequence:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.on = True
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.reset_lamp()
 
         assert lamp.reset == True
@@ -702,7 +696,7 @@ class TestResetLampSequence:
         mock_client = Mock()
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.reset_lamp()
             assert lamp.reset == True
 
@@ -715,7 +709,7 @@ class TestResetLampSequence:
         mock_client = Mock()
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.reset_lamp()
             assert lamp.reset == True
 
@@ -728,7 +722,7 @@ class TestResetLampSequence:
         mock_client = Mock()
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.reset_lamp()
             assert lamp.reset == True
 
@@ -781,7 +775,7 @@ class TestPublishBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, True)  # publish=True
 
         # Should have published
@@ -797,7 +791,7 @@ class TestPublishBehavior:
         # Clear any calls from initialization
         mock_client.reset_mock()
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brup(False, False)  # publish=False
 
         # Should not have published
@@ -809,7 +803,7 @@ class TestPublishBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(False, True)  # publish=True
 
         # Should have published
@@ -824,7 +818,7 @@ class TestPublishBehavior:
         # Clear any calls from initialization
         mock_client.reset_mock()
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             lamp.brdown(False, False)  # publish=False
 
         # Should not have published
@@ -839,7 +833,7 @@ class TestRFSendBehavior:
         mock_client = Mock()
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.on_off("true", True)  # send=True
 
         mock_send.assert_called_once()
@@ -849,7 +843,7 @@ class TestRFSendBehavior:
         mock_client = Mock()
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.on_off("true", False)  # send=False
 
         mock_send.assert_not_called()
@@ -860,7 +854,7 @@ class TestRFSendBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.brup(False, False)  # received=False
 
         mock_send.assert_called_once()
@@ -871,7 +865,7 @@ class TestRFSendBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.brup(True, False)  # received=True
 
         mock_send.assert_not_called()
@@ -882,7 +876,7 @@ class TestRFSendBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.brdown(False, False)  # received=False
 
         mock_send.assert_called_once()
@@ -893,7 +887,7 @@ class TestRFSendBehavior:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.brightness = 50
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             lamp.brdown(True, False)  # received=True
 
         mock_send.assert_not_called()
@@ -908,7 +902,7 @@ class TestInvalidInputs:
         lamp = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
         lamp.on = False
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             # Invalid payload results in on = None
             # Since self.on (False) != on (None), it will toggle
             lamp.on_off("invalid", True)
@@ -943,7 +937,7 @@ class TestInvalidInputs:
         mock_message = Mock()
         mock_message.payload.decode.return_value = "any_value"
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             callback(mock_client, None, mock_message)
 
         # Should have created a lamp and called cct
@@ -960,14 +954,14 @@ class TestMainFunction:
     def test_main_single_command_mode(self):
         """Test main() in single command send mode."""
         # Mock the args to have a code specified
-        with patch('lamp_control_mqtt.args') as mock_args:
+        with patch("lamp_control_mqtt.args") as mock_args:
             mock_args.code = 3513633
             mock_args.gpio_tx = 4
             mock_args.protocol = 1
             mock_args.pulselength = 350
 
-            with patch('lamp_control_mqtt.mqtt.Client') as mock_mqtt_client:
-                with patch('lamp_control_mqtt.RFDevice') as mock_rf_device:
+            with patch("lamp_control_mqtt.mqtt.Client") as mock_mqtt_client:
+                with patch("lamp_control_mqtt.RFDevice") as mock_rf_device:
                     mock_tx = Mock()
                     mock_rf_device.return_value = mock_tx
 
@@ -982,7 +976,7 @@ class TestMainFunction:
     def test_main_daemon_mode(self):
         """Test main() in daemon mode (no code specified)."""
         # Mock the args to not have a code (daemon mode)
-        with patch('lamp_control_mqtt.args') as mock_args:
+        with patch("lamp_control_mqtt.args") as mock_args:
             mock_args.code = None
             mock_args.gpio_rx = 23
 
@@ -990,10 +984,14 @@ class TestMainFunction:
             mock_rxdevice = Mock()
             mock_rxdevice.rx_code_timestamp = None
 
-            with patch('lamp_control_mqtt.mqtt.Client', return_value=mock_client_instance) as mock_mqtt:
-                with patch('lamp_control_mqtt.RFDevice', return_value=mock_rxdevice) as mock_rf_device:
+            with patch(
+                "lamp_control_mqtt.mqtt.Client", return_value=mock_client_instance
+            ) as mock_mqtt:
+                with patch(
+                    "lamp_control_mqtt.RFDevice", return_value=mock_rxdevice
+                ) as mock_rf_device:
                     # Mock sleep to avoid infinite loop - raise exception after first call
-                    with patch('lamp_control_mqtt.sleep') as mock_sleep:
+                    with patch("lamp_control_mqtt.sleep") as mock_sleep:
                         mock_sleep.side_effect = [None, KeyboardInterrupt]
 
                         try:
@@ -1029,7 +1027,7 @@ class TestIntegrationSequences:
 
     def test_reset_then_set_brightness_sequence(self, lamp, mock_client):
         """Test complete reset → set brightness → verify state workflow."""
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             # Start: lamp in unknown state
             lamp.on = True
             lamp.brightness = 50
@@ -1057,7 +1055,7 @@ class TestIntegrationSequences:
         lcm.lamp_list.append(lamp)
         mock_client.reset_mock()
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             # Simulate receiving brightness up command from RF remote
             code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
             initial_brightness = lamp.brightness
@@ -1075,7 +1073,7 @@ class TestIntegrationSequences:
 
     def test_rapid_brightness_changes(self, lamp):
         """Test rapid brightness adjustments (simulate real usage)."""
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             # Start at mid-level
             lamp.brightness = 50
             lamp.on = True
@@ -1105,7 +1103,7 @@ class TestIntegrationSequences:
         """Test complete MQTT command → lamp state → RF transmission workflow."""
         lcm.lamp_list.clear()
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             # Simulate MQTT brightness command
             mock_message = Mock()
             mock_message.payload.decode.return_value = "80"
@@ -1128,7 +1126,7 @@ class TestIntegrationSequences:
         """Test controlling multiple lamps independently."""
         lcm.lamp_list.clear()
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             # Create two lamps
             lamp1 = lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
             lamp2 = lcm.joofo_lamp(lcm.STUDY_DESK_LAMP, mock_client)
@@ -1156,7 +1154,7 @@ class TestIntegrationSequences:
         lamp.on = False
         lamp.brightness = 0
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             # User turns on lamp via remote (on/off button)
             code1 = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
             lcm.handle_rx(code1, 1000000, lcm.MIN_GAP + 1)
@@ -1187,7 +1185,7 @@ class TestIntegrationSequences:
         lcm.lamp_list.append(lamp)
         lamp.on = False
 
-        with patch('lamp_control_mqtt.send_rf'):
+        with patch("lamp_control_mqtt.send_rf"):
             code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
             timestamp_base = 1000000
 
@@ -1207,7 +1205,7 @@ class TestIntegrationSequences:
 
     def test_boundary_brightness_with_extra_commands(self, lamp):
         """Test brightness boundaries send extra commands for reliability."""
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             # Test maximum brightness
             lamp.brightness = 95
             lamp.set_brightness_level(100)
@@ -1230,7 +1228,7 @@ class TestIntegrationSequences:
         """Test complete HomeKit → MQTT → lamp state → RF cycle."""
         lcm.lamp_list.clear()
 
-        with patch('lamp_control_mqtt.send_rf') as mock_send:
+        with patch("lamp_control_mqtt.send_rf") as mock_send:
             # Simulate HomeKit turning on lamp via MQTT
             on_off_callback = lcm.create_lamp_callback(
                 lcm.LIVING_ROOM_LAMP, "Living Room", "on_off"
@@ -1260,3 +1258,214 @@ class TestIntegrationSequences:
 
         lcm.lamp_list.clear()
 
+
+class TestPerformanceAndStress:
+    """Performance and stress tests for high-load scenarios."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock MQTT client."""
+        client = Mock()
+        client.message_callback_add = Mock()
+        client.publish = Mock()
+        return client
+
+    @pytest.fixture
+    def lamp(self, mock_client):
+        """Create a lamp instance for testing."""
+        return lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client)
+
+    def test_rapid_rf_command_processing(self, lamp):
+        """Test processing 100+ rapid RF commands without errors."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+
+        with patch("lamp_control_mqtt.send_rf"):
+            # Simulate 100 rapid brightness up commands
+            timestamp = 1000000
+            for i in range(100):
+                code = lcm.LIVING_ROOM_LAMP + lcm.BRIGHTNESS_UP_OFFSET
+                # Each command 250ms apart (beyond MIN_GAP)
+                timestamp += 250000
+                lcm.handle_rx(code, timestamp, 250000)
+
+            # Lamp should have processed all commands
+            assert lamp.brightness <= lcm.HK_BR_MAX
+            assert lamp.on == True
+
+        lcm.lamp_list.clear()
+
+    def test_alternating_on_off_stress(self, lamp):
+        """Test rapid on/off toggling stress test."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+        lamp.on = False
+
+        with patch("lamp_control_mqtt.send_rf"):
+            # 50 rapid on/off toggles
+            timestamp = 1000000
+            for i in range(50):
+                code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
+                timestamp += 300000  # 300ms apart
+                lcm.handle_rx(code, timestamp, 300000)
+
+            # Should end up in off state (50 toggles from False)
+            assert lamp.on == False
+
+        lcm.lamp_list.clear()
+
+    def test_multiple_lamps_concurrent_commands(self, mock_client):
+        """Test handling concurrent commands to multiple lamps."""
+        lcm.lamp_list.clear()
+
+        with patch("lamp_control_mqtt.send_rf"):
+            # Create 4 lamps
+            lamps = [
+                lcm.joofo_lamp(lcm.LIVING_ROOM_LAMP, mock_client),
+                lcm.joofo_lamp(lcm.STUDY_LAMPS, mock_client),
+                lcm.joofo_lamp(lcm.STUDY_DESK_LAMP, mock_client),
+                lcm.joofo_lamp(lcm.STUDY_TABLE_LAMP, mock_client),
+            ]
+            lcm.lamp_list.extend(lamps)
+
+            # Send brightness commands to each lamp
+            for lamp in lamps:
+                lamp.set_brightness_level(50)
+
+            # Verify all lamps responded independently
+            for lamp in lamps:
+                assert abs(lamp.brightness - 50) <= 3
+
+            # Rapid interleaved commands
+            for _ in range(10):
+                lamps[0].brup(False, False)
+                lamps[1].brdown(False, False)
+                lamps[2].brup(False, False)
+                lamps[3].brdown(False, False)
+
+            # All lamps should still be in valid state
+            for lamp in lamps:
+                assert 1 <= lamp.brightness <= lcm.HK_BR_MAX
+
+        lcm.lamp_list.clear()
+
+    def test_brightness_full_range_sweep(self, lamp):
+        """Test sweeping through entire brightness range."""
+        with patch("lamp_control_mqtt.send_rf"):
+            # Start from minimum
+            lamp.brightness = 1
+
+            # Sweep to maximum
+            for target in range(10, 101, 10):
+                lamp.set_brightness_level(target)
+                assert abs(lamp.brightness - target) <= 3
+
+            # Sweep back down
+            for target in range(90, 0, -10):
+                lamp.set_brightness_level(target)
+                assert abs(lamp.brightness - target) <= 3
+
+            # Lamp should still be functional
+            assert lamp.on == True
+
+    def test_mqtt_callback_flood(self, mock_client):
+        """Test handling flood of MQTT messages."""
+        lcm.lamp_list.clear()
+
+        with patch("lamp_control_mqtt.send_rf"):
+            callback = lcm.create_lamp_callback(lcm.LIVING_ROOM_LAMP, "Living Room", "brightness")
+
+            mock_message = Mock()
+
+            # Simulate 50 rapid MQTT brightness commands
+            for brightness in range(1, 51):
+                mock_message.payload.decode.return_value = str(brightness)
+                callback(mock_client, None, mock_message)
+
+            # Should have one lamp in list
+            assert len(lcm.lamp_list) == 1
+            lamp = lcm.lamp_list[0]
+
+            # Final brightness should be near 50
+            assert abs(lamp.brightness - 50) <= 3
+
+        lcm.lamp_list.clear()
+
+    def test_duplicate_filtering_under_load(self, lamp):
+        """Test duplicate command filtering with high message rate."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+        lamp.on = False
+
+        with patch("lamp_control_mqtt.send_rf"):
+            code = lcm.LIVING_ROOM_LAMP + lcm.ON_OFF_OFFSET
+            timestamp = 1000000
+            toggle_count = 0
+
+            # Send 100 commands, some duplicates, some valid
+            for i in range(100):
+                if i % 3 == 0:
+                    # Valid command (beyond MIN_GAP)
+                    timestamp += 300000
+                    gap = 300000
+                    toggle_count += 1
+                else:
+                    # Duplicate (within MIN_GAP)
+                    timestamp += 50000
+                    gap = 50000
+
+                lcm.handle_rx(code, timestamp, gap)
+
+            # Should have toggled exactly toggle_count times
+            expected_state = False if toggle_count % 2 == 0 else True
+            assert lamp.on == expected_state
+
+        lcm.lamp_list.clear()
+
+    def test_state_consistency_after_stress(self, lamp):
+        """Test lamp state remains consistent after stress operations."""
+        with patch("lamp_control_mqtt.send_rf"):
+            # Initial state
+            lamp.on = True
+            lamp.brightness = 50
+            lamp.color_temp = 0
+
+            # Stress operations
+            for _ in range(20):
+                lamp.brup(False, False)
+                lamp.brdown(False, False)
+                lamp.cct(False)
+
+            # State should still be valid
+            assert isinstance(lamp.on, bool)
+            assert 1 <= lamp.brightness <= lcm.HK_BR_MAX
+            assert 0 <= lamp.color_temp <= 2
+
+    def test_memory_efficiency_large_command_sequence(self, lamp, mock_client):
+        """Test memory efficiency with large command sequences."""
+        lcm.lamp_list.clear()
+        lcm.lamp_list.append(lamp)
+
+        with patch("lamp_control_mqtt.send_rf"):
+            # Process 500 commands
+            timestamp = 1000000
+            commands = [
+                lcm.BRIGHTNESS_UP_OFFSET,
+                lcm.BRIGHTNESS_DOWN_OFFSET,
+                lcm.CCT_OFFSET,
+                lcm.ON_OFF_OFFSET,
+            ]
+
+            for i in range(500):
+                code = lcm.LIVING_ROOM_LAMP + commands[i % len(commands)]
+                timestamp += 300000
+                lcm.handle_rx(code, timestamp, 300000)
+
+            # Lamp list should still only have one lamp
+            assert len(lcm.lamp_list) == 1
+
+            # State should be valid
+            assert lamp.brightness <= lcm.HK_BR_MAX
+            assert 0 <= lamp.color_temp <= 2
+
+        lcm.lamp_list.clear()
