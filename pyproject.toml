@@ -1,0 +1,17 @@
+[project]
+name = "home-automation"
+version = "0.1.0"
+description = "MQTT/RF Bridge for Smart Lamps - Raspberry Pi home automation system"
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    "paho-mqtt>=1.6.0",
+    "RPi.GPIO>=0.7.0",
+    "rpi-rf>=0.9.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
